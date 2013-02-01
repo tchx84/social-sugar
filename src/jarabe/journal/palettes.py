@@ -17,20 +17,23 @@
 from gettext import gettext as _
 import logging
 import os
+import tempfile
 
 from gi.repository import GObject
 from gi.repository import Gtk
 from gi.repository import Gdk
+from gi.repository import GdkPixbuf
 from gi.repository import GConf
 from gi.repository import Gio
 from gi.repository import GLib
 
+from sugar3.datastore import datastore
 from sugar3.graphics import style
 from sugar3.graphics.palette import Palette
 from sugar3.graphics.menuitem import MenuItem
 from sugar3.graphics.icon import Icon
 from sugar3.graphics.xocolor import XoColor
-from sugar3.graphics.alert import Alert
+from sugar3.graphics.alert import Alert, NotifyAlert
 from sugar3 import mime
 
 from jarabe.model import friends
@@ -39,7 +42,7 @@ from jarabe.model import mimeregistry
 from jarabe.journal import misc
 from jarabe.journal import model
 from jarabe.journal import journalwindow
-
+from jarabe.util import online_accounts_manager as oam
 
 class ObjectPalette(Palette):
 
@@ -111,6 +114,16 @@ class ObjectPalette(Palette):
             menu_item.connect('activate', self.__duplicate_activate_cb)
             self.menu.append(menu_item)
             menu_item.show()
+
+        menu_item = MenuItem(_('Share on'))
+        icon = Icon(icon_name='activity-web', xo_color=color,
+                    icon_size=Gtk.IconSize.MENU)
+        menu_item.set_image(icon)
+        self.menu.append(menu_item)
+        menu_item.show()
+        share_menu = ShareMenu(metadata)
+        menu_item.set_submenu(share_menu)
+        menu_item.show()
 
         menu_item = MenuItem(_('Send to'), 'document-send')
         self.menu.append(menu_item)
@@ -191,6 +204,24 @@ class ObjectPalette(Palette):
 
         filetransfer.start_transfer(buddy, file_name, title, description,
                                     mime_type)
+
+
+class ShareMenu(Gtk.Menu):
+    __gtype_name__ = 'JournalShareMenu'
+
+    __gsignals__ = {
+        'share-error': (GObject.SignalFlags.RUN_FIRST, None,
+                         ([str, str])),
+    }
+
+    def __init__(self, metadata):
+        Gtk.Menu.__init__(self)
+
+        self._metadata = metadata
+
+        for account in oam.OnlineAccountsManager.configured_accounts():
+            menu = account.get_share_menu(metadata)
+            self.append(menu)
 
 
 class CopyMenu(Gtk.Menu):

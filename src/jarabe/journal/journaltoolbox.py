@@ -26,6 +26,7 @@ from gi.repository import GObject
 from gi.repository import Gio
 from gi.repository import Gtk
 
+from sugar3.datastore import datastore
 from sugar3.graphics.palette import Palette
 from sugar3.graphics.toolbarbox import ToolbarBox
 from sugar3.graphics.toolcombobox import ToolComboBox
@@ -37,7 +38,7 @@ from sugar3.graphics.palettemenu import PaletteMenuBox
 from sugar3.graphics.palettemenu import PaletteMenuItem
 from sugar3.graphics.icon import Icon
 from sugar3.graphics.xocolor import XoColor
-from sugar3.graphics.alert import Alert
+from sugar3.graphics.alert import NotifyAlert, Alert
 from sugar3.graphics import iconentry
 from sugar3 import mime
 
@@ -47,7 +48,7 @@ from jarabe.journal import model
 from jarabe.journal.palettes import ClipboardMenu
 from jarabe.journal.palettes import VolumeMenu
 from jarabe.journal import journalwindow
-
+from jarabe.util import online_accounts_manager as oam
 
 _AUTOSEARCH_TIMEOUT = 1000
 
@@ -386,6 +387,11 @@ class DetailToolbox(ToolbarBox):
         self._duplicate.connect('clicked', self._duplicate_clicked_cb)
         self.toolbar.insert(self._duplicate, -1)
 
+        self._refresh_buttons = []
+        for account in oam.OnlineAccountsManager.configured_accounts():
+            self._refresh_buttons.append(account.get_refresh_button())
+            self.toolbar.insert(self._refresh_buttons[-1], -1)
+
         separator = Gtk.SeparatorToolItem()
         self.toolbar.insert(separator, -1)
         separator.show()
@@ -398,6 +404,8 @@ class DetailToolbox(ToolbarBox):
 
     def set_metadata(self, metadata):
         self._metadata = metadata
+        for refresh_button in self._refresh_buttons:
+            refresh_button.set_metadata(metadata)
         self._refresh_copy_palette()
         self._refresh_duplicate_palette()
         self._refresh_resume_palette()
