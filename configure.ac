@@ -64,6 +64,8 @@ extensions/cpsection/updater/backends/Makefile
 extensions/cpsection/updater/Makefile
 extensions/deviceicon/Makefile
 extensions/globalkey/Makefile
+extensions/web/Makefile
+extensions/web/facebook/Makefile
 extensions/Makefile
 Makefile
 po/Makefile.in
@@ -77,6 +79,7 @@ src/jarabe/Makefile
 src/jarabe/model/Makefile
 src/jarabe/util/Makefile
 src/jarabe/util/telepathy/Makefile
+src/jarabe/web/Makefile
 src/jarabe/view/Makefile
 src/Makefile
 ])

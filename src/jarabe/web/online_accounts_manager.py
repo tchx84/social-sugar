@@ -21,15 +21,28 @@
 #THE SOFTWARE.
 
 from gi.repository import GObject
+import logging
+import os
 
-from jarabe.util import facebook_online_account as fboa
+from jarabe import config
 
 
 class OnlineAccountsManager(GObject.GObject):
     @classmethod
     def all_accounts(cls):
         accounts = []
-        accounts.append(fboa.FacebookOnlineAccount())
+
+        for f in os.listdir(os.path.join(config.ext_path, 'web')):
+            if f.endswith('.py') and not f.startswith('__'):
+                module_name = f[:-3]
+                logging.debug("OnlineAccountsManager loading %s" % \
+                                  (module_name))
+                try:
+                    mod = __import__('web.' + module_name, globals(),
+                                     locals(), [module_name])
+                    accounts.append(mod.get_account())
+                except Exception:
+                    logging.exception('Exception while loading extension:')
         return accounts
 
     @classmethod

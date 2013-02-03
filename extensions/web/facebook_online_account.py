@@ -26,6 +26,8 @@ import os
 import tempfile
 import time
 
+from facebook import facebook
+
 from gi.repository import Gtk
 from gi.repository import GdkPixbuf
 from gi.repository import GConf
@@ -35,8 +37,8 @@ from sugar3.graphics.alert import Alert, NotifyAlert
 from sugar3.graphics.icon import Icon
 
 from jarabe.journal import journalwindow
-from jarabe.util import facebook
-from jarabe.util import online_account
+
+from jarabe.web import online_account
 
 ACCOUNT_NEEDS_ATTENTION = 0
 ACCOUNT_ACTIVE = 1
@@ -62,6 +64,9 @@ class FacebookOnlineAccount(online_account.OnlineAccount):
         return expiration_date != 0 and expiration_date > time.time()
 
     def get_share_menu(self, journal_entry_metadata):
+        # TODO:
+        #  this logic belongs inside FacebookShareMenu
+        #  we should set this menu to insensitive if !is_active()
         if self.is_active():
             icon_name = 'facebook-share'
         else:
@@ -225,3 +230,6 @@ class FacebookRefreshButton(online_account.OnlineRefreshButton):
 
     def __fb_refresh_offline_response_cb(self, alert, alert_id):
         pass
+
+def get_account():
+    return FacebookOnlineAccount()
