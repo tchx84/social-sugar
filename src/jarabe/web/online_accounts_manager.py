@@ -32,17 +32,21 @@ class OnlineAccountsManager(GObject.GObject):
     def all_accounts(cls):
         accounts = []
 
-        for f in os.listdir(os.path.join(config.ext_path, 'web')):
-            if f.endswith('.py') and not f.startswith('__'):
-                module_name = f[:-3]
-                logging.debug("OnlineAccountsManager loading %s" % \
-                                  (module_name))
-                try:
-                    mod = __import__('web.' + module_name, globals(),
-                                     locals(), [module_name])
-                    accounts.append(mod.get_account())
-                except Exception:
-                    logging.exception('Exception while loading extension:')
+        web_path = os.path.join(config.ext_path, 'web')
+        for d in os.listdir(web_path):
+            dir_path = os.path.join(web_path, d)
+            if os.path.isdir(dir_path):
+                for f in os.listdir(dir_path):
+                    if f.endswith('.py') and not f.startswith('__'):
+                        module_name = f[:-3]
+                        logging.debug("OnlineAccountsManager loading %s" % \
+                                          (module_name))
+                        try:
+                            mod = __import__('web.' + d + '.' + module_name, globals(),
+                                             locals(), [module_name])
+                            accounts.append(mod.get_account())
+                        except Exception:
+                            logging.exception('Exception while loading extension:')
         return accounts
 
     @classmethod

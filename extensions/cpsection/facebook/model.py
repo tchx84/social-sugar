@@ -21,7 +21,7 @@ from gi.repository import GConf
 import os
 import time
 
-from web import facebook_online_account as fboa
+from web.fb import facebook_online_account as fboa
 
 def save_access_token(access_token, expires_in):
     client = GConf.Client.get_default()

@@ -65,7 +65,9 @@ extensions/cpsection/updater/Makefile
 extensions/deviceicon/Makefile
 extensions/globalkey/Makefile
 extensions/web/Makefile
-extensions/web/facebook/Makefile
+extensions/web/fb/Makefile
+extensions/web/fb/facebook/Makefile
+extensions/web/fb/icons/Makefile
 extensions/Makefile
 Makefile
 po/Makefile.in
