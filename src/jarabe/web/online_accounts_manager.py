@@ -34,6 +34,7 @@ class OnlineAccountsManager(GObject.GObject):
         accounts = []
 
         icon_theme = Gtk.IconTheme.get_default()
+        icon_search_path = icon_theme.get_search_path()
 
         web_path = os.path.join(config.ext_path, 'web')
         for d in os.listdir(web_path):
@@ -53,7 +54,8 @@ class OnlineAccountsManager(GObject.GObject):
                     elif f == 'icons':
                         icon_path = os.path.join(dir_path, f)
                         if os.path.isdir(icon_path) and \
-                           icon_path not in icon_theme:
+                           icon_path not in icon_search_path:
+                            logging.debug("OnelineAccountsManager adding %s to icon_theme" % (icon_path))
                             icon_theme.append_search_path(icon_path)
 
         return accounts
