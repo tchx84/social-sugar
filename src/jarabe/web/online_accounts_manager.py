@@ -20,6 +20,7 @@
 #OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 #THE SOFTWARE.
 
+from gi.repository import Gtk
 from gi.repository import GObject
 import logging
 import os
@@ -31,6 +32,8 @@ class OnlineAccountsManager(GObject.GObject):
     @classmethod
     def all_accounts(cls):
         accounts = []
+
+        icon_theme = Gtk.IconTheme.get_default()
 
         web_path = os.path.join(config.ext_path, 'web')
         for d in os.listdir(web_path):
@@ -47,6 +50,12 @@ class OnlineAccountsManager(GObject.GObject):
                             accounts.append(mod.get_account())
                         except Exception:
                             logging.exception('Exception while loading extension:')
+                    elif f == 'icons':
+                        icon_path = os.path.join(dir_path, f)
+                        if os.path.isdir(icon_path) and \
+                           icon_path not in icon_theme:
+                            icon_theme.append_search_path(icon_path)
+
         return accounts
 
     @classmethod
