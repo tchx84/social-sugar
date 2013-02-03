@@ -33,7 +33,6 @@ class FbAccount():
 
     @classmethod
     def set_access_token(cls, access_token):
-        logging.debug("LOOK = %s" % (access_token))
         cls._access_token = access_token
 
     @classmethod
