@@ -115,16 +115,6 @@ class ObjectPalette(Palette):
             self.menu.append(menu_item)
             menu_item.show()
 
-        menu_item = MenuItem(_('Share on'))
-        icon = Icon(icon_name='activity-web', xo_color=color,
-                    icon_size=Gtk.IconSize.MENU)
-        menu_item.set_image(icon)
-        self.menu.append(menu_item)
-        menu_item.show()
-        share_menu = ShareMenu(metadata)
-        menu_item.set_submenu(share_menu)
-        menu_item.show()
-
         menu_item = MenuItem(_('Send to'), 'document-send')
         self.menu.append(menu_item)
         menu_item.show()
@@ -206,24 +196,6 @@ class ObjectPalette(Palette):
                                     mime_type)
 
 
-class ShareMenu(Gtk.Menu):
-    __gtype_name__ = 'JournalShareMenu'
-
-    __gsignals__ = {
-        'share-error': (GObject.SignalFlags.RUN_FIRST, None,
-                         ([str, str])),
-    }
-
-    def __init__(self, metadata):
-        Gtk.Menu.__init__(self)
-
-        self._metadata = metadata
-
-        for account in oam.OnlineAccountsManager.configured_accounts():
-            menu = account.get_share_menu(metadata)
-            self.append(menu)
-
-
 class CopyMenu(Gtk.Menu):
     __gtype_name__ = 'JournalCopyMenu'
 
@@ -280,6 +252,10 @@ class CopyMenu(Gtk.Menu):
             volume_menu.connect('volume-error', self.__volume_error_cb)
             self.append(volume_menu)
             volume_menu.show()
+
+        for account in oam.OnlineAccountsManager.configured_accounts():
+            menu = account.get_share_menu(metadata)
+            self.append(menu)
 
     def __volume_error_cb(self, menu_item, message, severity):
         self.emit('volume-error', message, severity)
