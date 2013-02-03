@@ -21,6 +21,7 @@
 #THE SOFTWARE.
 
 from gi.repository import GObject
+from gi.repository import Gtk
 
 from sugar3.graphics.menuitem import MenuItem
 from sugar3.graphics.toolbutton import ToolButton
@@ -37,6 +38,11 @@ class OnlineAccount(GObject.GObject):
 
     def get_refresh_button(self):
         raise Exception("Not defined")
+
+    def _add_icon_path(self, icon_path):
+        icon_theme = Gtk.IconTheme.get_default()
+        if os.path.exists(icon_path) and not icon_path in icon_theme:
+            icon_theme.append_search_path(icon_path)
 
 
 class OnlineShareMenu(MenuItem):
