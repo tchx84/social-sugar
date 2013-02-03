@@ -505,6 +505,10 @@ class DetailToolbox(ToolbarBox):
             palette.menu.append(volume_menu)
             volume_menu.show()
 
+        for account in oam.OnlineAccountsManager.configured_accounts():
+            menu = account.get_share_menu(metadata)
+            palette.menu.append(menu)
+
     def _refresh_duplicate_palette(self):
         color = misc.get_icon_color(self._metadata)
         self._copy.get_icon_widget().props.xo_color = color
