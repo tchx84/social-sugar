@@ -42,6 +42,7 @@ from jarabe.web import online_account
 
 ACCOUNT_NEEDS_ATTENTION = 0
 ACCOUNT_ACTIVE = 1
+ONLINE_ACCOUNT_NAME = _('Facebook')
 
 
 class FacebookOnlineAccount(online_account.OnlineAccount):
@@ -54,6 +55,10 @@ class FacebookOnlineAccount(online_account.OnlineAccount):
         online_account.OnlineAccount.__init__(self)
         self._client = GConf.Client.get_default()
         facebook.FbAccount.set_access_token(self._access_token())
+        self._alert = None
+
+    def get_description(self):
+        return ONLINE_ACCOUNT_NAME
 
     def is_configured(self):
         return self._access_token() is not None
@@ -64,32 +69,53 @@ class FacebookOnlineAccount(online_account.OnlineAccount):
         return expiration_date != 0 and expiration_date > time.time()
 
     def get_share_menu(self, journal_entry_metadata):
-        # TODO:
-        #  this logic belongs inside FacebookShareMenu
-        #  we should set this menu to insensitive if !is_active()
-        if self.is_active():
-            icon_name = 'facebook-share'
-        else:
-            icon_name = 'facebook-share-insensitive'
-        fb_share_menu = FacebookShareMenu(journal_entry_metadata)
-        fb_share_menu.set_image(Icon(icon_name=icon_name,
-                                     icon_size=Gtk.IconSize.MENU))
-        fb_share_menu.show()
+        fb_share_menu = _FacebookShareMenu(journal_entry_metadata,
+                                          self.is_active())
+        self._connect_transfer_signals(fb_share_menu)
         return fb_share_menu
 
     def get_refresh_button(self):
-        return FacebookRefreshButton(self.is_active())
+        fb_refresh_button = _FacebookRefreshButton(self.is_active())
+        self._connect_transfer_signals(fb_refresh_button)
+        return fb_refresh_button
+
+    def _connect_transfer_signals(self, transfer_widget):
+        transfer_widget.connect('transfer-state-changed',
+                                self._transfer_state_changed_cb)
+
+    def _transfer_state_changed_cb(self, widget, state_message):
+        logging.debug('_transfer_state_changed_cb')
+
+        if self._alert is None:
+            self._alert = NotifyAlert()
+            self._alert.props.title = ONLINE_ACCOUNT_NAME
+            self._alert.connect('response', self._alert_response_cb)
+
+        journalwindow.get_journal_window().add_alert(self._alert)
+        self._alert.props.msg = state_message
+        self._alert.show()
+
+    def _alert_response_cb(self, alert, response_id):
+        journalwindow.get_journal_window().remove_alert(alert)
+        self._alert = None
 
     def _access_token(self):
         return self._client.get_string(self.ACCESS_TOKEN_KEY)
 
 
-class FacebookShareMenu(online_account.OnlineShareMenu):
+class _FacebookShareMenu(online_account.OnlineShareMenu):
     __gtype_name__ = 'JournalFacebookMenu'
 
-    def __init__(self, metadata):
-        online_account.OnlineShareMenu.__init__(self, _('Facebook'))
+    def __init__(self, metadata, is_active):
+        online_account.OnlineShareMenu.__init__(self, ONLINE_ACCOUNT_NAME)
 
+        if is_active:
+            icon_name = 'facebook-share'
+        else:
+            icon_name = 'facebook-share-insensitive'
+        self.set_image(Icon(icon_name=icon_name,
+                            icon_size=Gtk.IconSize.MENU))
+        self.show()
         self._metadata = metadata
         self._comment = '%s: %s' % (self._get_metadata_by_key('title'),
                                     self._get_metadata_by_key('description'))
@@ -112,6 +138,8 @@ class FacebookShareMenu(online_account.OnlineShareMenu):
         photo.connect('photo-create-failed',
                       self._photo_create_failed_cb,
                       tmp_file)
+        photo.connect('transfer-state-changed', self._transfer_state_changed_cb)
+
         result = photo.create(tmp_file)
 
     def _photo_created_cb(self, fb_photo, fb_object_id, tmp_file):
@@ -138,27 +166,11 @@ class FacebookShareMenu(online_account.OnlineShareMenu):
         if os.path.exists(tmp_file):
             os.unlink(tmp_file)
 
-        self._fb_notify(failed_reason)
-
     def _comment_added_cb(self, fb_photo, fb_comment_id):
         logging.debug("_comment_added_cb")
-        self._fb_notify(_('Upload successful'))
 
     def _comment_add_failed_cb(self, fb_photo, failed_reason):
         logging.debug("_comment_add_failed_cb")
-        self._fb_notify(failed_reason)
-
-    def _fb_notify(self, message):
-        alert = NotifyAlert()
-        title_string = _('Facebook')
-        alert.props.title = title_string
-        alert.props.msg = message
-        alert.connect('response', self._facebook_alert_response_cb)
-        journalwindow.get_journal_window().add_alert(alert)
-        alert.show()
-
-    def _facebook_alert_response_cb(self, alert, response_id):
-        journalwindow.get_journal_window().remove_alert(alert)
 
     def _image_file_from_metadata(self, image_path):
         """ Load a pixbuf from a Journal object. """
@@ -177,7 +189,7 @@ class FacebookShareMenu(online_account.OnlineShareMenu):
             pixbuf.savev(image_path, 'png', [], [])
 
 
-class FacebookRefreshButton(online_account.OnlineRefreshButton):
+class _FacebookRefreshButton(online_account.OnlineRefreshButton):
     def __init__(self, is_active):
         online_account.OnlineRefreshButton.__init__(self, 'facebook-refresh-insensitive')
 
@@ -207,6 +219,7 @@ class FacebookRefreshButton(online_account.OnlineRefreshButton):
                          self._fb_comments_downloaded_cb)
         fb_photo.connect('comments-download-failed',
                          self._fb_comments_download_failed_cb)
+        fb_photo.connect('transfer-state-changed', self._transfer_state_changed_cb)
         fb_photo.refresh_comments()
 
     def _fb_comments_downloaded_cb(self, fb_photo, comments):
@@ -223,15 +236,6 @@ class FacebookRefreshButton(online_account.OnlineRefreshButton):
 
     def _fb_comments_download_failed_cb(self, fb_photo, failed_reason):
         logging.debug('_fb_comments_download_failed_cb: %s' % (failed_reason))
-        alert = NotifyAlert()
-        alert.props.title = _('Comments download')
-        alert.props.msg = failed_reason
-        alert.connect('response', self.__fb_refresh_offline_response_cb)
-        journalwindow.get_journal_window().add_alert(alert)
-        alert.show()
-
-    def __fb_refresh_offline_response_cb(self, alert, alert_id):
-        pass
 
 def get_account():
     return FacebookOnlineAccount()

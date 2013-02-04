@@ -506,7 +506,7 @@ class DetailToolbox(ToolbarBox):
             volume_menu.show()
 
         for account in oam.OnlineAccountsManager.configured_accounts():
-            menu = account.get_share_menu(metadata)
+            menu = account.get_share_menu(self._metadata)
             palette.menu.append(menu)
 
     def _refresh_duplicate_palette(self):

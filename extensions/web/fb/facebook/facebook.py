@@ -45,6 +45,21 @@ class FbObjectNotCreatedException(Exception):
 class FbBadCall(Exception):
     pass
 
+FB_TRANSFER_DOWNLOAD = 0
+FB_TRANSFER_UPLOAD = 1
+
+FB_PHOTO = 0
+FB_COMMENT = 1
+FB_LIKE = 2
+FB_STATUS = 3
+
+FB_TYPES = {
+    FB_PHOTO: "photo",
+    FB_COMMENT: "comment",
+    FB_LIKE: "like",
+    FB_STATUS: "status",
+}
+
 class FbPhoto(GObject.GObject):
     PHOTOS_URL = "https://graph.facebook.com/me/photos?access_token=%s"
     COMMENTS_URL = "https://graph.facebook.com/%s/comments"
@@ -57,6 +72,11 @@ class FbPhoto(GObject.GObject):
         'comments-downloaded': (GObject.SignalFlags.RUN_FIRST, None, ([object])),
         'comments-download-failed': (GObject.SignalFlags.RUN_FIRST, None, ([str])),
         'likes-downloaded': (GObject.SignalFlags.RUN_FIRST, None, ([object])),
+        'transfer-started': (GObject.SignalFlags.RUN_FIRST, None, ([int, int])),
+        'transfer-progress': (GObject.SignalFlags.RUN_FIRST, None, ([int, int, float])),
+        'transfer-completed': (GObject.SignalFlags.RUN_FIRST, None, ([int, int])),
+        'transfer-failed': (GObject.SignalFlags.RUN_FIRST, None, ([int, int, str])),
+        'transfer-state-changed': (GObject.SignalFlags.RUN_FIRST, None, ([str])),
     }
 
     def __init__(self, fb_object_id=None):
@@ -87,7 +107,8 @@ class FbPhoto(GObject.GObject):
         def write_cb(buf):
             response.append(buf)
 
-        res = self._http_call(url, [('message', comment)], write_cb, post=True)
+        res = self._http_call(url, [('message', comment)], write_cb, True,
+                              FB_COMMENT)
         if res == 200:
             try:
                 comment_id = self._id_from_response("".join(response))
@@ -107,7 +128,7 @@ class FbPhoto(GObject.GObject):
         def write_cb(buf):
             response.append(buf)
 
-        result = self._http_call(url, params, write_cb, post=True)
+        result = self._http_call(url, params, write_cb, True, FB_PHOTO)
         if result == 200:
             photo_id = self._id_from_response("".join(response))
             self.fb_object_id = photo_id
@@ -145,7 +166,7 @@ class FbPhoto(GObject.GObject):
         def write_cb(buf):
             response_comments.append(buf)
 
-        ret =  self._http_call(url, [], write_cb, post=False)
+        ret =  self._http_call(url, [], write_cb, False, FB_COMMENT)
         if ret != 200:
             logging.debug("_refresh_comments failed, HTTP resp code: %d" % ret)
             self.emit('comments-download-failed',
@@ -181,28 +202,81 @@ class FbPhoto(GObject.GObject):
         else:
             self.emit('comments-download-failed', 'No comments found')
 
-    def _http_call(self, url, params, write_cb, post=False):
+    def _http_call(self, url, params, write_cb, post, fb_type):
+        logging.debug('_http_call')
+
         app_auth_params = [('access_token', FbAccount.access_token())]
 
+        def f(*args):
+            logging.debug('will call _http_progress_cb')
+            try:
+                args = list(args) + [fb_type]
+                self._http_progress_cb(*args)
+            except Exception as ex:
+                logging.debug("oops %s" % (str(ex)))
+
         c = pycurl.Curl()
+        c.setopt(c.NOPROGRESS, 0)
+        c.setopt(c.PROGRESSFUNCTION, f)
         c.setopt(c.WRITEFUNCTION, write_cb)
 
         if post:
             c.setopt(c.POST, 1)
             c.setopt(c.HTTPPOST, app_auth_params + params)
+            transfer_type = FB_TRANSFER_UPLOAD
+            transfer_str = "Upload"
         else:
             c.setopt(c.HTTPGET, 1)
             params_str = urllib.urlencode(app_auth_params + params)
             url = "%s?%s" % (url, params_str)
+            transfer_type = FB_TRANSFER_DOWNLOAD
+            transfer_str = "Download"
 
         logging.debug("_http_call: %s" % (url))
 
         c.setopt(c.URL, url)
         c.perform()
+
         result = c.getinfo(c.HTTP_CODE)
+        if result != 200:
+            error_reason = "HTTP Code %d" % (result)
+            self.emit('transfer-failed', fb_type, transfer_type, error_reason)
+            self.emit('transfer-state-changed', "%s failed: %s" % (transfer_str, error_reason))
+
         c.close()
 
         return result
+
+    def _http_progress_cb(self, download_total, download_done,
+                          upload_total, upload_done, fb_type):
+        logging.debug('_http_progress_cb')
+
+        if download_total != 0:
+            total = download_total
+            done = download_done
+            transfer_type = FB_TRANSFER_DOWNLOAD
+            transfer_str = "Download"
+        else:
+            total = upload_total
+            done = upload_done
+            transfer_type = FB_TRANSFER_UPLOAD
+            transfer_str = "Upload"
+
+        if done == 0:
+            self.emit('transfer-started', fb_type, transfer_type)
+            state = "started"
+        elif done == total:
+            self.emit('transfer-completed', fb_type, transfer_type)
+            self.emit('transfer-state-changed', "%s completed" % (transfer_str))
+            state = "completed"
+        else:
+            if total != 0:
+                self.emit('transfer-progress', fb_type, transfer_type,
+                          float(done) / float(total))
+                perc = int((float(done) / float(total))*100)
+                state = "%d% done" % (perc)
+
+        self.emit('transfer-state-changed', "%s %s" % (transfer_str, state))
 
 
 if __name__ == '__main__':
