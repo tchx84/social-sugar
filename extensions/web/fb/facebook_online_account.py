@@ -228,9 +228,16 @@ class _FacebookRefreshButton(online_account.OnlineRefreshButton):
         ds_object = datastore.get(self._metadata['uid'])
         if not 'comments' in ds_object.metadata:
             ds_object.metadata['comments'] = ''
+        if not 'comment ids' in ds_object.metadata:
+            comment_ids = []
+        else:
+            comment_ids = ds_object.metadata['comment ids'].split(',')
         for comment in comments:
-            c_str = "%s: %s" % (comment['from'], comment['message'])
-            ds_object.metadata['comments'] += c_str
+            if comment['id'] not in comment_ids:
+                c_str = "%s: %s\n" % (comment['from'], comment['message'])
+                ds_object.metadata['comments'] += c_str
+                comment_ids.append(comment['id'])
+        ds_object.metadata['comment ids'] = ','.join(comment_ids)
 
         datastore.write(ds_object, update_mtime=False)
 
