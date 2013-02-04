@@ -128,6 +128,10 @@ class ExpandedEntry(Gtk.EventBox):
         second_column.pack_start(tags_box, True, True,
                                  style.DEFAULT_SPACING)
 
+        comments_box, self._comments = self._create_comments()
+        second_column.pack_start(comments_box, True, True,
+                                 style.DEFAULT_SPACING)
+
         self._buddy_list = Gtk.VBox()
         second_column.pack_start(self._buddy_list, True, False, 0)
 
@@ -170,6 +174,8 @@ class ExpandedEntry(Gtk.EventBox):
         self._description.get_buffer().set_text(description)
         tags = metadata.get('tags', '')
         self._tags.get_buffer().set_text(tags)
+        comments = metadata.get('comments', '')
+        self._comments.get_buffer().set_text(comments)
 
     def _create_keep_icon(self):
         keep_icon = KeepIcon()
@@ -355,6 +361,9 @@ class ExpandedEntry(Gtk.EventBox):
     def _create_tags(self):
         return self._create_scrollable(_('Tags:'))
 
+    def _create_comments(self):
+        return self._create_scrollable(_('Comments:'))
+
     def _title_notify_text_cb(self, entry, pspec):
         if not self._update_title_sid:
             self._update_title_sid = GObject.timeout_add_seconds(1,
@@ -386,6 +395,15 @@ class ExpandedEntry(Gtk.EventBox):
 
         if old_tags != new_tags:
             self._metadata['tags'] = new_tags
+            needs_update = True
+
+        bounds = self._comments.get_buffer().get_bounds()
+        old_comments = self._metadata.get('comments', None)
+        new_comments = self._comments.get_buffer().get_text(
+            bounds[0], bounds[1], include_hidden_chars=False)
+
+        if old_comments != new_comments:
+            self._metadata['comments'] = new_comments
             needs_update = True
 
         bounds = self._description.get_buffer().get_bounds()

@@ -226,11 +226,11 @@ class _FacebookRefreshButton(online_account.OnlineRefreshButton):
         logging.debug('_fb_comments_downloaded_cb')
 
         ds_object = datastore.get(self._metadata['uid'])
-        if not 'description' in ds_object.metadata:
-            ds_object.metadata['description'] = ''
+        if not 'comments' in ds_object.metadata:
+            ds_object.metadata['comments'] = ''
         for comment in comments:
             c_str = "%s: %s" % (comment['from'], comment['message'])
-            ds_object.metadata['description'] += c_str
+            ds_object.metadata['comments'] += c_str
 
         datastore.write(ds_object, update_mtime=False)
 
