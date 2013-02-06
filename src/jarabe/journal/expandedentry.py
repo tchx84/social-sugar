@@ -19,17 +19,20 @@ from gettext import gettext as _
 import StringIO
 import time
 import os
+import json
 
 import cairo
 from gi.repository import GObject
 from gi.repository import GLib
 from gi.repository import Gtk
 from gi.repository import Gdk
+from gi.repository import GdkPixbuf
 import simplejson
 
 from sugar3.graphics import style
 from sugar3.graphics.xocolor import XoColor
-from sugar3.graphics.icon import CanvasIcon
+from sugar3.graphics.icon import CanvasIcon, get_icon_file_name
+from sugar3.graphics.icon import Icon, CellRendererIcon
 from sugar3.util import format_size
 
 from jarabe.journal.keepicon import KeepIcon
@@ -58,6 +61,85 @@ class BuddyList(Gtk.Alignment):
             icon.set_palette(BuddyPalette(buddy))
             hbox.pack_start(icon, True, True, 0)
         self.add(hbox)
+
+
+class TextView(Gtk.TextView):
+    def __init__(self):
+        Gtk.TextView.__init__(self)
+        text_buffer = Gtk.TextBuffer()
+        self.set_buffer(text_buffer)
+        self.set_left_margin(style.DEFAULT_PADDING)
+        self.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
+        return 
+
+
+class CommentsView(Gtk.TreeView):
+    __gsignals__ = {
+        'comment-added': (
+            GObject.SignalFlags.RUN_FIRST, None, ([str, str, str])),
+        'clicked': (GObject.SignalFlags.RUN_FIRST, None, [object]),
+    }
+    def __init__(self):
+        Gtk.TreeView.__init__(self)
+        self.store = Gtk.ListStore(GdkPixbuf.Pixbuf, str, str, GdkPixbuf.Pixbuf)
+        '''
+        self._erase_button = CanvasIcon(icon_name='list-remove',
+                                        xo_color=XoColor('#000000,#FFFFFF'),
+                                        pixel_size=style.SMALL_ICON_SIZE)
+        self._erase_button.connect('clicked', self._erase_comment_cb)
+        '''
+        self._erase_button = GdkPixbuf.Pixbuf.new_from_file_at_size(
+            get_icon_file_name('zoom-out'), style.SMALL_ICON_SIZE,
+            style.SMALL_ICON_SIZE)
+
+        self.init_model()
+
+    def clear(self):
+        self.store.clear()
+
+    def get_selected_row(self):
+        selection = self.get_selection()
+        return selection.get_selected()
+
+    def add_row(self, who, what, icon):
+        if type(icon) is list:
+            icon_name = 'computer-xo'
+            icon_color = "%s,%s" % (icon[0], icon[1])
+        else:
+            icon_name = icon
+        '''
+        icon = CanvasIcon(icon_name=icon_name
+                          xo_color=XoColor(icon_color),
+                          pixel_size=style.SMALL_ICON_SIZE)
+        '''
+        # Until I figure out how to get the pixbuf from the icon
+        # or how to add an icon to the ListStore
+        pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_size(
+            get_icon_file_name(icon_name), style.SMALL_ICON_SIZE,
+            style.SMALL_ICON_SIZE)
+        logging.debug('store append %s %s %s' % (who, what, icon_name))
+        self.store.append((pixbuf, who, what, self._erase_button))
+
+    def init_model(self):
+        self.set_model(self.store)
+        col = Gtk.TreeViewColumn()
+        render_pixbuf = Gtk.CellRendererPixbuf()
+        col.pack_start(render_pixbuf, False)
+        col.add_attribute(render_pixbuf, 'pixbuf', 0)
+        render_text = Gtk.CellRendererText()
+        col.pack_start(render_text, True)
+        col.add_attribute(render_text, 'text', 1)
+        render_text = Gtk.CellRendererText()
+        col.pack_start(render_text, True)
+        col.add_attribute(render_text, 'text', 2)
+        render_pixbuf = Gtk.CellRendererPixbuf()
+        col.pack_start(render_pixbuf, False)
+        col.add_attribute(render_pixbuf, 'pixbuf', 3)
+        self.append_column(col)
+
+    def _erase_comment_cb(self, event):
+        # TODO: Find selected row; delete it; and remove comment from metadata
+        logging.debug('ERASE COMMENT')
 
 
 class ExpandedEntry(Gtk.EventBox):
@@ -174,8 +256,15 @@ class ExpandedEntry(Gtk.EventBox):
         self._description.get_buffer().set_text(description)
         tags = metadata.get('tags', '')
         self._tags.get_buffer().set_text(tags)
+
         comments = metadata.get('comments', '')
-        self._comments.get_buffer().set_text(comments)
+        self._comments.clear()
+        if comments != '':
+            comments = json.loads(comments)
+            for comment in comments:
+                self._comments.add_row(
+                    comment['from'], comment['message'], comment['icon'])
+        self._comments.show()
 
     def _create_keep_icon(self):
         keep_icon = KeepIcon()
@@ -326,7 +415,7 @@ class ExpandedEntry(Gtk.EventBox):
         else:
             return vbox
 
-    def _create_scrollable(self, label):
+    def _create_scrollable(self, label, widget_class):
         vbox = Gtk.VBox()
         vbox.props.spacing = style.DEFAULT_SPACING
 
@@ -342,27 +431,29 @@ class ExpandedEntry(Gtk.EventBox):
         scrolled_window.set_policy(Gtk.PolicyType.AUTOMATIC,
                                    Gtk.PolicyType.AUTOMATIC)
         scrolled_window.set_shadow_type(Gtk.ShadowType.ETCHED_IN)
-        text_buffer = Gtk.TextBuffer()
-        text_view = Gtk.TextView()
-        text_view.set_buffer(text_buffer)
-        text_view.set_left_margin(style.DEFAULT_PADDING)
-        text_view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
-        scrolled_window.add(text_view)
+
+        widget = widget_class()
+
+        scrolled_window.add(widget)
         vbox.pack_start(scrolled_window, True, True, 0)
 
-        text_view.connect('focus-out-event',
-                          self._description_tags_focus_out_event_cb)
+        if isinstance(widget, Gtk.TextView):
+            widget.connect('focus-out-event',
+                           self._description_tags_focus_out_event_cb)
+        elif isinstance(widget, CommentsView):
+            widget.connect('comment-added',
+                           self._comment_added_event_cb)
 
-        return vbox, text_view
+        return vbox, widget # text_view
 
     def _create_description(self):
-        return self._create_scrollable(_('Description:'))
+        return self._create_scrollable(_('Description:'), TextView)
 
     def _create_tags(self):
-        return self._create_scrollable(_('Tags:'))
+        return self._create_scrollable(_('Tags:'), TextView)
 
     def _create_comments(self):
-        return self._create_scrollable(_('Comments:'))
+        return self._create_scrollable(_('Comments:'), CommentsView)
 
     def _title_notify_text_cb(self, entry, pspec):
         if not self._update_title_sid:
@@ -374,6 +465,10 @@ class ExpandedEntry(Gtk.EventBox):
 
     def _description_tags_focus_out_event_cb(self, text_view, event):
         self._update_entry()
+
+    def _comment_added_event_cb(self, comment, event):
+        logging.debug('comment added event: %s' % (comment))
+        self._comments.add_row(comment[0], comment[1], comment[2])
 
     def _update_entry(self, needs_update=False):
         if not model.is_editable(self._metadata):
@@ -395,15 +490,6 @@ class ExpandedEntry(Gtk.EventBox):
 
         if old_tags != new_tags:
             self._metadata['tags'] = new_tags
-            needs_update = True
-
-        bounds = self._comments.get_buffer().get_bounds()
-        old_comments = self._metadata.get('comments', None)
-        new_comments = self._comments.get_buffer().get_text(
-            bounds[0], bounds[1], include_hidden_chars=False)
-
-        if old_comments != new_comments:
-            self._metadata['comments'] = new_comments
             needs_update = True
 
         bounds = self._description.get_buffer().get_bounds()

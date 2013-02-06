@@ -79,6 +79,7 @@ class OnlineRefreshButton(ToolButton):
         'transfer-completed': (GObject.SignalFlags.RUN_FIRST, None, ([int, int])),
         'transfer-failed': (GObject.SignalFlags.RUN_FIRST, None, ([int, int, str])),
         'transfer-state-changed': (GObject.SignalFlags.RUN_FIRST, None, ([str])),
+        'comment-added': (GObject.SignalFlags.RUN_FIRST, None, ([str, str, str])),
     }
 
     def _transfer_state_changed_cb(self, transfer_object, state):

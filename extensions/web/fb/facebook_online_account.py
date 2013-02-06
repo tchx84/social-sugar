@@ -25,6 +25,7 @@ import logging
 import os
 import tempfile
 import time
+import json
 
 from facebook import facebook
 
@@ -43,7 +44,8 @@ from jarabe.web import online_account
 ACCOUNT_NEEDS_ATTENTION = 0
 ACCOUNT_ACTIVE = 1
 ONLINE_ACCOUNT_NAME = _('Facebook')
-
+COMMENTS = 'comments'
+COMMENT_IDS = 'comment_ids'
 
 class FacebookOnlineAccount(online_account.OnlineAccount):
 
@@ -226,18 +228,25 @@ class _FacebookRefreshButton(online_account.OnlineRefreshButton):
         logging.debug('_fb_comments_downloaded_cb')
 
         ds_object = datastore.get(self._metadata['uid'])
-        if not 'comments' in ds_object.metadata:
-            ds_object.metadata['comments'] = ''
-        if not 'comment ids' in ds_object.metadata:
-            comment_ids = []
+        if not COMMENTS in ds_object.metadata:
+            ds_comments = []
         else:
-            comment_ids = ds_object.metadata['comment ids'].split(',')
+            ds_comments = json.loads(ds_object.metadata[COMMENTS])
+        if not COMMENT_IDS in ds_object.metadata:
+            ds_comment_ids = []
+        else:
+            ds_comment_ids = json.loads(ds_object.metadata[COMMENT_IDS])
         for comment in comments:
-            if comment['id'] not in comment_ids:
-                c_str = "%s: %s\n" % (comment['from'], comment['message'])
-                ds_object.metadata['comments'] += c_str
-                comment_ids.append(comment['id'])
-        ds_object.metadata['comment ids'] = ','.join(comment_ids)
+            if comment['id'] not in ds_comment_ids:
+                # TODO: get avatar icon and add it to icon_theme
+                ds_comments.append({'from': comment['from'],
+                                    'message': comment['message'],
+                                    'icon': 'facebook-share'})
+                ds_comment_ids.append(comment['id'])
+                self.emit('comment-added', comment['from'],
+                          comment['message'], 'facebook-share')
+        ds_object.metadata[COMMENTS] = json.dumps(ds_comments)
+        ds_object.metadata[COMMENT_IDS] = json.dumps(ds_comment_ids)
 
         datastore.write(ds_object, update_mtime=False)
 
