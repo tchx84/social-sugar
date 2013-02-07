@@ -205,15 +205,23 @@ class _FacebookRefreshButton(online_account.OnlineRefreshButton):
     def set_metadata(self, metadata):
         self._metadata = metadata
         if self._is_active:
-            if self._metadata and 'fb_object_id' in self._metadata:
-                self.set_sensitive(True)
-                self.set_icon_name('facebook-refresh')
+            if self._metadata:
+                if 'fb_object_id' in self._metadata:
+                    self.set_sensitive(True)
+                    self.set_icon_name('facebook-refresh')
+                else:
+                    self.set_sensitive(False)
+                    self.set_icon_name('facebook-refresh-insensitive')
 
     def _fb_refresh_button_clicked_cb(self, button):
         logging.debug('_fb_refresh_button_clicked_cb')
 
         if self._metadata is None:
             logging.debug('_fb_refresh_button_clicked_cb called without metadata')
+            return
+
+        if 'fb_object_id' not in self._metadata:
+            logging.debug('_fb_refresh_button_clicked_cb called without fb_object_id in metadata')
             return
 
         fb_photo = facebook.FbPhoto(self._metadata['fb_object_id'])
@@ -236,6 +244,7 @@ class _FacebookRefreshButton(online_account.OnlineRefreshButton):
             ds_comment_ids = []
         else:
             ds_comment_ids = json.loads(ds_object.metadata[COMMENT_IDS])
+        new_comment = False
         for comment in comments:
             if comment['id'] not in ds_comment_ids:
                 # TODO: get avatar icon and add it to icon_theme
@@ -243,10 +252,11 @@ class _FacebookRefreshButton(online_account.OnlineRefreshButton):
                                     'message': comment['message'],
                                     'icon': 'facebook-share'})
                 ds_comment_ids.append(comment['id'])
-                self.emit('comment-added', comment['from'],
-                          comment['message'], 'facebook-share')
-        ds_object.metadata[COMMENTS] = json.dumps(ds_comments)
-        ds_object.metadata[COMMENT_IDS] = json.dumps(ds_comment_ids)
+                new_comment = True
+        if new_comment:
+            ds_object.metadata[COMMENTS] = json.dumps(ds_comments)
+            ds_object.metadata[COMMENT_IDS] = json.dumps(ds_comment_ids)
+            self.emit('comments-updated')
 
         datastore.write(ds_object, update_mtime=False)
 

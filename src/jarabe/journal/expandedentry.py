@@ -70,13 +70,12 @@ class TextView(Gtk.TextView):
         self.set_buffer(text_buffer)
         self.set_left_margin(style.DEFAULT_PADDING)
         self.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
-        return 
+        return
 
 
 class CommentsView(Gtk.TreeView):
     __gsignals__ = {
-        'comment-added': (
-            GObject.SignalFlags.RUN_FIRST, None, ([str, str, str])),
+        'comments-updated': (GObject.SignalFlags.RUN_FIRST, None, ([])),
         'clicked': (GObject.SignalFlags.RUN_FIRST, None, [object]),
     }
     def __init__(self):
@@ -92,16 +91,29 @@ class CommentsView(Gtk.TreeView):
             get_icon_file_name('zoom-out'), style.SMALL_ICON_SIZE,
             style.SMALL_ICON_SIZE)
 
-        self.init_model()
+        self._init_model()
 
-    def clear(self):
+    def update_comments(self, comments):
         self.store.clear()
+        if comments != '':
+            comments = json.loads(comments)
+            for comment in comments:
+                self._add_row(
+                    self._get_comment_field(comment, 'from', ''),
+                    self._get_comment_field(comment, 'message', ''),
+                    self._get_comment_field(comment, 'icon', 'computer-xo'))
+        self.show()
 
     def get_selected_row(self):
         selection = self.get_selection()
         return selection.get_selected()
 
-    def add_row(self, who, what, icon):
+    def _get_comment_field(self, comment, field, default):
+        if field in comment:
+            return comment[field]
+        return default
+
+    def _add_row(self, who, what, icon):
         if type(icon) is list:
             icon_name = 'computer-xo'
             icon_color = "%s,%s" % (icon[0], icon[1])
@@ -120,7 +132,7 @@ class CommentsView(Gtk.TreeView):
         logging.debug('store append %s %s %s' % (who, what, icon_name))
         self.store.append((pixbuf, who, what, self._erase_button))
 
-    def init_model(self):
+    def _init_model(self):
         self.set_model(self.store)
         col = Gtk.TreeViewColumn()
         render_pixbuf = Gtk.CellRendererPixbuf()
@@ -220,51 +232,58 @@ class ExpandedEntry(Gtk.EventBox):
         self.show_all()
 
     def set_metadata(self, metadata):
+        logging.debug('expandedentry: set_metadata')
         if self._metadata == metadata:
+            logging.debug('expandedentry: metadata has *not* changed')
             return
+        logging.debug('expandedentry: metadata has changed')
         self._metadata = metadata
 
+        logging.debug('expandedentry: 1. keep icon')
         self._keep_icon.set_active(int(metadata.get('keep', 0)) == 1)
 
+        logging.debug('expandedentry: 2. activity icon')
         self._icon = self._create_icon()
         for child in self._icon_box.get_children():
             self._icon_box.remove(child)
             #FIXME: self._icon_box.foreach(self._icon_box.remove)
         self._icon_box.pack_start(self._icon, False, False, 0)
 
+        logging.debug('expandedentry: 3. date')
         self._date.set_text(misc.get_date(metadata))
 
+        logging.debug('expandedentry: 4. title %s' % (metadata.get('title', _('Untitled'))))
         self._title.set_text(metadata.get('title', _('Untitled')))
 
+        logging.debug('expandedentry: 5. preview')
         if self._preview_box.get_child():
             self._preview_box.remove(self._preview_box.get_child())
         self._preview_box.add(self._create_preview())
 
+        logging.debug('expandedentry: 6. techbox')
         for child in self._technical_box.get_children():
             self._technical_box.remove(child)
             #FIXME: self._technical_box.foreach(self._technical_box.remove)
         self._technical_box.pack_start(self._create_technical(),
                                        False, False, style.DEFAULT_SPACING)
 
+        logging.debug('expandedentry: 7. buddies')
         for child in self._buddy_list.get_children():
             self._buddy_list.remove(child)
             #FIXME: self._buddy_list.foreach(self._buddy_list.remove)
         self._buddy_list.pack_start(self._create_buddy_list(), False, False,
                                     style.DEFAULT_SPACING)
 
+        logging.debug('expandedentry: 8. description')
         description = metadata.get('description', '')
         self._description.get_buffer().set_text(description)
+
+        logging.debug('expandedentry: 9. tags')
         tags = metadata.get('tags', '')
         self._tags.get_buffer().set_text(tags)
 
-        comments = metadata.get('comments', '')
-        self._comments.clear()
-        if comments != '':
-            comments = json.loads(comments)
-            for comment in comments:
-                self._comments.add_row(
-                    comment['from'], comment['message'], comment['icon'])
-        self._comments.show()
+        logging.debug('expandedentry: 10. comments')
+        self._comments.update_comments(metadata.get('comments', ''))
 
     def _create_keep_icon(self):
         keep_icon = KeepIcon()
@@ -397,7 +416,6 @@ class ExpandedEntry(Gtk.EventBox):
         return _('No date')
 
     def _create_buddy_list(self):
-
         vbox = Gtk.VBox()
         vbox.props.spacing = style.DEFAULT_SPACING
 
@@ -441,10 +459,10 @@ class ExpandedEntry(Gtk.EventBox):
             widget.connect('focus-out-event',
                            self._description_tags_focus_out_event_cb)
         elif isinstance(widget, CommentsView):
-            widget.connect('comment-added',
-                           self._comment_added_event_cb)
+            widget.connect('comments-updated',
+                           self._comments_updated_event_cb)
 
-        return vbox, widget # text_view
+        return vbox, widget
 
     def _create_description(self):
         return self._create_scrollable(_('Description:'), TextView)
@@ -466,9 +484,9 @@ class ExpandedEntry(Gtk.EventBox):
     def _description_tags_focus_out_event_cb(self, text_view, event):
         self._update_entry()
 
-    def _comment_added_event_cb(self, comment, event):
-        logging.debug('comment added event: %s' % (comment))
-        self._comments.add_row(comment[0], comment[1], comment[2])
+    def _comments_updated_event_cb(self, event):
+        logging.debug('expandedexntry: comments updated event')
+        self._comments.update_comments()
 
     def _update_entry(self, needs_update=False):
         if not model.is_editable(self._metadata):
