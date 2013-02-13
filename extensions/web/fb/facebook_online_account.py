@@ -45,7 +45,7 @@ ACCOUNT_NEEDS_ATTENTION = 0
 ACCOUNT_ACTIVE = 1
 ONLINE_ACCOUNT_NAME = _('Facebook')
 COMMENTS = 'comments'
-COMMENT_IDS = 'comment_ids'
+COMMENT_IDS = 'fb_comment_ids'
 
 class FacebookOnlineAccount(online_account.OnlineAccount):
 
