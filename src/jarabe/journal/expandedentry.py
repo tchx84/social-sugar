@@ -27,18 +27,19 @@ from gi.repository import GLib
 from gi.repository import Gtk
 from gi.repository import Gdk
 from gi.repository import GdkPixbuf
-import simplejson
 
 from sugar3.graphics import style
 from sugar3.graphics.xocolor import XoColor
 from sugar3.graphics.icon import CanvasIcon, get_icon_file_name
-from sugar3.graphics.icon import Icon, CellRendererIcon
+from sugar3.graphics.icon import Icon, CellRendererIcon, get_icon_file_name
+from sugar3.graphics.alert import Alert
 from sugar3.util import format_size
 
 from jarabe.journal.keepicon import KeepIcon
 from jarabe.journal.palettes import ObjectPalette, BuddyPalette
 from jarabe.journal import misc
 from jarabe.journal import model
+from jarabe.journal import journalwindow
 
 
 class Separator(Gtk.VBox):
@@ -63,14 +64,19 @@ class BuddyList(Gtk.Alignment):
         self.add(hbox)
 
 
-class TextView(Gtk.TextView):
-    def __init__(self):
+class DescTagsView(Gtk.TextView):
+    def __init__(self, parent):
         Gtk.TextView.__init__(self)
         text_buffer = Gtk.TextBuffer()
+        self._parent = parent
         self.set_buffer(text_buffer)
         self.set_left_margin(style.DEFAULT_PADDING)
         self.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
-        return
+        self.connect('focus-out-event',
+                     self._description_tags_focus_out_event_cb)
+
+    def _description_tags_focus_out_event_cb(self, text_view, event):
+        self.parent._update_entry()
 
 
 class CommentsView(Gtk.TreeView):
@@ -78,80 +84,120 @@ class CommentsView(Gtk.TreeView):
         'comments-updated': (GObject.SignalFlags.RUN_FIRST, None, ([])),
         'clicked': (GObject.SignalFlags.RUN_FIRST, None, [object]),
     }
-    def __init__(self):
-        Gtk.TreeView.__init__(self)
-        self.store = Gtk.ListStore(GdkPixbuf.Pixbuf, str, str, GdkPixbuf.Pixbuf)
-        '''
-        self._erase_button = CanvasIcon(icon_name='list-remove',
-                                        xo_color=XoColor('#000000,#FFFFFF'),
-                                        pixel_size=style.SMALL_ICON_SIZE)
-        self._erase_button.connect('clicked', self._erase_comment_cb)
-        '''
-        self._erase_button = GdkPixbuf.Pixbuf.new_from_file_at_size(
-            get_icon_file_name('zoom-out'), style.SMALL_ICON_SIZE,
-            style.SMALL_ICON_SIZE)
+    FROM = 'from'
+    MESSAGE = 'message'
+    ICON = 'icon'
+    COMMENT_ICON = 0
+    COMMENT_ICON_COLOR = 1
+    COMMENT_FROM = 2
+    COMMENT_MESSAGE = 3
+    COMMENT_ERASE_ICON = 4
+    COMMENT_ERASE_ICON_COLOR = 5
 
+    def __init__(self, parent):
+        Gtk.TreeView.__init__(self)
+        self._store = Gtk.ListStore(str, object, str, str, str, object)
+        self._parent = parent
+        self._comments = []
         self._init_model()
+        self.connect('comments-updated', self._comments_updated_event_cb)
 
     def update_comments(self, comments):
-        self.store.clear()
+        self._store.clear()
         if comments != '':
-            comments = json.loads(comments)
-            for comment in comments:
+            self._comments = json.loads(comments)
+            for comment in self._comments:
                 self._add_row(
-                    self._get_comment_field(comment, 'from', ''),
-                    self._get_comment_field(comment, 'message', ''),
-                    self._get_comment_field(comment, 'icon', 'computer-xo'))
+                    self._get_comment_field(comment, self.FROM, ''),
+                    self._get_comment_field(comment, self.MESSAGE, ''),
+                    self._get_comment_field(comment, self.ICON, 'computer-xo'))
         self.show()
 
-    def get_selected_row(self):
+    def _get_selected_row(self):
         selection = self.get_selection()
         return selection.get_selected()
+
+    def _comments_updated_event_cb(self, event):
+        logging.debug('expandedexntry: comments updated event')
+        self.update_comments()
 
     def _get_comment_field(self, comment, field, default):
         if field in comment:
             return comment[field]
         return default
 
-    def _add_row(self, who, what, icon):
+    def _add_row(self, sender, message, icon):
         if type(icon) is list:
             icon_name = 'computer-xo'
-            icon_color = "%s,%s" % (icon[0], icon[1])
+            icon_color = '%s,%s' % (str(icon[0]), str(icon[1]))
         else:
             icon_name = icon
-        '''
-        icon = CanvasIcon(icon_name=icon_name
-                          xo_color=XoColor(icon_color),
-                          pixel_size=style.SMALL_ICON_SIZE)
-        '''
-        # Until I figure out how to get the pixbuf from the icon
-        # or how to add an icon to the ListStore
-        pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_size(
-            get_icon_file_name(icon_name), style.SMALL_ICON_SIZE,
-            style.SMALL_ICON_SIZE)
-        logging.debug('store append %s %s %s' % (who, what, icon_name))
-        self.store.append((pixbuf, who, what, self._erase_button))
+            icon_color = '#FFFFFF,#000000'
+        self._store.append((get_icon_file_name(icon_name), XoColor(icon_color),
+                            sender, message, get_icon_file_name('list-remove'),
+                            XoColor('#FFFFFF,#000000')))
 
     def _init_model(self):
-        self.set_model(self.store)
-        col = Gtk.TreeViewColumn()
-        render_pixbuf = Gtk.CellRendererPixbuf()
-        col.pack_start(render_pixbuf, False)
-        col.add_attribute(render_pixbuf, 'pixbuf', 0)
-        render_text = Gtk.CellRendererText()
-        col.pack_start(render_text, True)
-        col.add_attribute(render_text, 'text', 1)
-        render_text = Gtk.CellRendererText()
-        col.pack_start(render_text, True)
-        col.add_attribute(render_text, 'text', 2)
-        render_pixbuf = Gtk.CellRendererPixbuf()
-        col.pack_start(render_pixbuf, False)
-        col.add_attribute(render_pixbuf, 'pixbuf', 3)
+        self.set_model(self._store)
+        col = Gtk.TreeViewColumn(_('Coment'))
+        who_icon = CellRendererCommentIcon(self)
+        col.pack_start(who_icon, False)
+        col.add_attribute(who_icon, 'file-name', self.COMMENT_ICON)
+        col.add_attribute(who_icon, 'xo-color', self.COMMENT_ICON_COLOR)
+        who_text = Gtk.CellRendererText()
+        col.pack_start(who_text, True)
+        col.add_attribute(who_text, 'text', self.COMMENT_FROM)
+        comment_text = Gtk.CellRendererText()
+        col.pack_start(comment_text, True)
+        col.add_attribute(comment_text, 'text', self.COMMENT_MESSAGE)
+        erase_icon = CellRendererCommentIcon(self)
+        erase_icon.connect('clicked', self._erase_comment_cb)
+        col.pack_start(erase_icon, False)
+        col.add_attribute(erase_icon, 'file-name', self.COMMENT_ERASE_ICON)
+        col.add_attribute(erase_icon, 'xo-color', self.COMMENT_ERASE_ICON_COLOR)
         self.append_column(col)
+        self.show()
 
-    def _erase_comment_cb(self, event):
-        # TODO: Find selected row; delete it; and remove comment from metadata
-        logging.debug('ERASE COMMENT')
+    def _erase_comment_cb(self, widget, event):
+        selection = self.get_selection()
+        entry = selection.get_selected()[1]
+        alert = Alert()
+        erase_string = _('Erase')
+        alert.props.title = erase_string
+        alert.props.msg = _('Do you want to permanently erase \"%s\"?') \
+            % self._store[entry][self.COMMENT_MESSAGE]
+        icon = Icon(icon_name='dialog-cancel')
+        alert.add_button(Gtk.ResponseType.CANCEL, _('Cancel'), icon)
+        icon.show()
+        ok_icon = Icon(icon_name='dialog-ok')
+        alert.add_button(Gtk.ResponseType.OK, erase_string, ok_icon)
+        ok_icon.show()
+        alert.connect('response', self.__erase_alert_response_cb, entry)
+        journalwindow.get_journal_window().add_alert(alert)
+        alert.show()
+
+    def __erase_alert_response_cb(self, alert, response_id, entry):
+        journalwindow.get_journal_window().remove_alert(alert)
+        if response_id is Gtk.ResponseType.OK:
+            # Seems a bit kludgy
+            self._comments.remove(
+                self._comments[int(str(self._store[entry].path))])
+            self._parent.set_comments(json.dumps(self._comments))
+            self._store.remove(entry)
+            self.show()
+
+
+class CellRendererCommentIcon(CellRendererIcon):
+    def __init__(self, tree_view):
+        CellRendererIcon.__init__(self, tree_view)
+
+        self.props.width = style.SMALL_ICON_SIZE
+        self.props.height = style.SMALL_ICON_SIZE
+        self.props.size = style.SMALL_ICON_SIZE
+        self.props.stroke_color = style.COLOR_BUTTON_GREY.get_svg()
+        self.props.fill_color = style.COLOR_BLACK.get_svg()
+        self.props.mode = Gtk.CellRendererMode.ACTIVATABLE
+        self.props.icon_name = ''
 
 
 class ExpandedEntry(Gtk.EventBox):
@@ -236,54 +282,54 @@ class ExpandedEntry(Gtk.EventBox):
         if self._metadata == metadata:
             logging.debug('expandedentry: metadata has *not* changed')
             return
+        if self._metadata is not None:
+            old_uid = self._metadata['uid']
+        else:
+            old_uid = 'None'
+        if old_uid == metadata['uid']:
+            return
         logging.debug('expandedentry: metadata has changed')
         self._metadata = metadata
 
-        logging.debug('expandedentry: 1. keep icon')
         self._keep_icon.set_active(int(metadata.get('keep', 0)) == 1)
 
-        logging.debug('expandedentry: 2. activity icon')
         self._icon = self._create_icon()
         for child in self._icon_box.get_children():
             self._icon_box.remove(child)
             #FIXME: self._icon_box.foreach(self._icon_box.remove)
         self._icon_box.pack_start(self._icon, False, False, 0)
 
-        logging.debug('expandedentry: 3. date')
         self._date.set_text(misc.get_date(metadata))
 
-        logging.debug('expandedentry: 4. title %s' % (metadata.get('title', _('Untitled'))))
         self._title.set_text(metadata.get('title', _('Untitled')))
 
-        logging.debug('expandedentry: 5. preview')
         if self._preview_box.get_child():
             self._preview_box.remove(self._preview_box.get_child())
         self._preview_box.add(self._create_preview())
 
-        logging.debug('expandedentry: 6. techbox')
         for child in self._technical_box.get_children():
             self._technical_box.remove(child)
             #FIXME: self._technical_box.foreach(self._technical_box.remove)
         self._technical_box.pack_start(self._create_technical(),
                                        False, False, style.DEFAULT_SPACING)
 
-        logging.debug('expandedentry: 7. buddies')
         for child in self._buddy_list.get_children():
             self._buddy_list.remove(child)
             #FIXME: self._buddy_list.foreach(self._buddy_list.remove)
         self._buddy_list.pack_start(self._create_buddy_list(), False, False,
                                     style.DEFAULT_SPACING)
 
-        logging.debug('expandedentry: 8. description')
         description = metadata.get('description', '')
         self._description.get_buffer().set_text(description)
 
-        logging.debug('expandedentry: 9. tags')
         tags = metadata.get('tags', '')
         self._tags.get_buffer().set_text(tags)
 
-        logging.debug('expandedentry: 10. comments')
         self._comments.update_comments(metadata.get('comments', ''))
+
+    def set_comments(self, comments):
+        self._metadata['comments'] = comments
+        self._write_entry()
 
     def _create_keep_icon(self):
         keep_icon = KeepIcon()
@@ -427,7 +473,7 @@ class ExpandedEntry(Gtk.EventBox):
         vbox.pack_start(halign, False, False, 0)
 
         if self._metadata.get('buddies'):
-            buddies = simplejson.loads(self._metadata['buddies']).values()
+            buddies = json.loads(self._metadata['buddies']).values()
             vbox.pack_start(BuddyList(buddies), False, False, 0)
             return vbox
         else:
@@ -437,41 +483,35 @@ class ExpandedEntry(Gtk.EventBox):
         vbox = Gtk.VBox()
         vbox.props.spacing = style.DEFAULT_SPACING
 
-        text = Gtk.Label()
-        text.set_markup('<span foreground="%s">%s</span>' % (
-                style.COLOR_BUTTON_GREY.get_html(), label))
+        if label is not None:
+            text = Gtk.Label()
+            text.set_markup('<span foreground="%s">%s</span>' % (
+                    style.COLOR_BUTTON_GREY.get_html(), label))
 
-        halign = Gtk.Alignment.new(0, 0, 0, 0)
-        halign.add(text)
-        vbox.pack_start(halign, False, False, 0)
+            halign = Gtk.Alignment.new(0, 0, 0, 0)
+            halign.add(text)
+            vbox.pack_start(halign, False, False, 0)
 
         scrolled_window = Gtk.ScrolledWindow()
         scrolled_window.set_policy(Gtk.PolicyType.AUTOMATIC,
                                    Gtk.PolicyType.AUTOMATIC)
         scrolled_window.set_shadow_type(Gtk.ShadowType.ETCHED_IN)
 
-        widget = widget_class()
+        widget = widget_class(self)
 
         scrolled_window.add(widget)
         vbox.pack_start(scrolled_window, True, True, 0)
 
-        if isinstance(widget, Gtk.TextView):
-            widget.connect('focus-out-event',
-                           self._description_tags_focus_out_event_cb)
-        elif isinstance(widget, CommentsView):
-            widget.connect('comments-updated',
-                           self._comments_updated_event_cb)
-
         return vbox, widget
 
     def _create_description(self):
-        return self._create_scrollable(_('Description:'), TextView)
+        return self._create_scrollable(_('Description:'), DescTagsView)
 
     def _create_tags(self):
-        return self._create_scrollable(_('Tags:'), TextView)
+        return self._create_scrollable(_('Tags:'), DescTagsView)
 
     def _create_comments(self):
-        return self._create_scrollable(_('Comments:'), CommentsView)
+        return self._create_scrollable(None, CommentsView)
 
     def _title_notify_text_cb(self, entry, pspec):
         if not self._update_title_sid:
@@ -481,17 +521,12 @@ class ExpandedEntry(Gtk.EventBox):
     def _title_focus_out_event_cb(self, entry, event):
         self._update_entry()
 
-    def _description_tags_focus_out_event_cb(self, text_view, event):
-        self._update_entry()
-
-    def _comments_updated_event_cb(self, event):
-        logging.debug('expandedexntry: comments updated event')
-        self._comments.update_comments()
-
     def _update_entry(self, needs_update=False):
         if not model.is_editable(self._metadata):
             return
 
+        if self._icon is None:
+            return
         old_title = self._metadata.get('title', None)
         new_title = self._title.get_text()
         if old_title != new_title:
@@ -519,16 +554,19 @@ class ExpandedEntry(Gtk.EventBox):
             needs_update = True
 
         if needs_update:
-            if self._metadata.get('mountpoint', '/') == '/':
-                model.write(self._metadata, update_mtime=False)
-            else:
-                old_file_path = os.path.join(self._metadata['mountpoint'],
-                        model.get_file_name(old_title,
-                        self._metadata['mime_type']))
-                model.write(self._metadata, file_path=old_file_path,
-                        update_mtime=False)
+            self._write_entry()
 
         self._update_title_sid = None
+
+    def _write_entry(self):
+        if self._metadata.get('mountpoint', '/') == '/':
+            model.write(self._metadata, update_mtime=False)
+        else:
+            old_file_path = os.path.join(self._metadata['mountpoint'],
+                model.get_file_name(old_title,
+                                    self._metadata['mime_type']))
+            model.write(self._metadata, file_path=old_file_path,
+                        update_mtime=False)
 
     def _keep_icon_toggled_cb(self, keep_icon):
         if keep_icon.get_active():
@@ -538,11 +576,9 @@ class ExpandedEntry(Gtk.EventBox):
         self._update_entry(needs_update=True)
 
     def _icon_button_release_event_cb(self, button, event):
-        logging.debug('_icon_button_release_event_cb')
         misc.resume(self._metadata)
         return True
 
     def _preview_box_button_release_event_cb(self, button, event):
-        logging.debug('_preview_box_button_release_event_cb')
         misc.resume(self._metadata)
         return True
