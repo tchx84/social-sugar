@@ -139,7 +139,7 @@ class CommentsView(Gtk.TreeView):
 
     def _init_model(self):
         self.set_model(self._store)
-        col = Gtk.TreeViewColumn(_('Coment'))
+        col = Gtk.TreeViewColumn(_('Comment'))
         who_icon = CellRendererCommentIcon(self)
         col.pack_start(who_icon, False)
         col.add_attribute(who_icon, 'file-name', self.COMMENT_ICON)
