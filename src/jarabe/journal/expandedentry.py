@@ -76,7 +76,7 @@ class DescTagsView(Gtk.TextView):
                      self._description_tags_focus_out_event_cb)
 
     def _description_tags_focus_out_event_cb(self, text_view, event):
-        self.parent._update_entry()
+        self._parent._update_entry()
 
 
 class CommentsView(Gtk.TreeView):
