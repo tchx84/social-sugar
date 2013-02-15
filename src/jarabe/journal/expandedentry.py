@@ -119,7 +119,7 @@ class CommentsView(Gtk.TreeView):
 
     def _comments_updated_event_cb(self, event):
         logging.debug('expandedexntry: comments updated event')
-        self.update_comments()
+        self.update_comments(self._parent.get_comments())
 
     def _get_comment_field(self, comment, field, default):
         if field in comment:
@@ -139,7 +139,7 @@ class CommentsView(Gtk.TreeView):
 
     def _init_model(self):
         self.set_model(self._store)
-        col = Gtk.TreeViewColumn(_('Comment'))
+        col = Gtk.TreeViewColumn(_('Comments:'))
         who_icon = CellRendererCommentIcon(self)
         col.pack_start(who_icon, False)
         col.add_attribute(who_icon, 'file-name', self.COMMENT_ICON)
@@ -330,6 +330,12 @@ class ExpandedEntry(Gtk.EventBox):
     def set_comments(self, comments):
         self._metadata['comments'] = comments
         self._write_entry()
+
+    def get_comments(self):
+        if 'comments' in self._metadata:
+            return self._metadata['comments']
+        else:
+            return ''
 
     def _create_keep_icon(self):
         keep_icon = KeepIcon()
@@ -525,13 +531,12 @@ class ExpandedEntry(Gtk.EventBox):
         if not model.is_editable(self._metadata):
             return
 
-        if self._icon is None:
-            return
         old_title = self._metadata.get('title', None)
         new_title = self._title.get_text()
         if old_title != new_title:
             label = GLib.markup_escape_text(new_title)
-            self._icon.palette.props.primary_text = label
+            if self._icon is not None:
+                self._icon.palette.props.primary_text = label
             self._metadata['title'] = new_title
             self._metadata['title_set_by_user'] = '1'
             needs_update = True
