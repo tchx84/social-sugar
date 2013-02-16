@@ -26,12 +26,11 @@ from gi.repository import GObject
 from gi.repository import GLib
 from gi.repository import Gtk
 from gi.repository import Gdk
-from gi.repository import GdkPixbuf
 
 from sugar3.graphics import style
 from sugar3.graphics.xocolor import XoColor
-from sugar3.graphics.icon import CanvasIcon, get_icon_file_name
-from sugar3.graphics.icon import Icon, CellRendererIcon, get_icon_file_name
+from sugar3.graphics.icon import (CanvasIcon, get_icon_file_name,
+                                  Icon, CellRendererIcon)
 from sugar3.graphics.alert import Alert
 from sugar3.util import format_size
 
@@ -278,17 +277,8 @@ class ExpandedEntry(Gtk.EventBox):
         self.show_all()
 
     def set_metadata(self, metadata):
-        logging.debug('expandedentry: set_metadata')
         if self._metadata == metadata:
-            logging.debug('expandedentry: metadata has *not* changed')
             return
-        if self._metadata is not None:
-            old_uid = self._metadata['uid']
-        else:
-            old_uid = 'None'
-        if old_uid == metadata['uid']:
-            return
-        logging.debug('expandedentry: metadata has changed')
         self._metadata = metadata
 
         self._keep_icon.set_active(int(metadata.get('keep', 0)) == 1)
@@ -321,11 +311,10 @@ class ExpandedEntry(Gtk.EventBox):
 
         description = metadata.get('description', '')
         self._description.get_buffer().set_text(description)
-
         tags = metadata.get('tags', '')
         self._tags.get_buffer().set_text(tags)
-
-        self._comments.update_comments(metadata.get('comments', ''))
+        comments = metadata.get('comments', '')
+        self._comments.update_comments(comments)
 
     def set_comments(self, comments):
         self._metadata['comments'] = comments
@@ -468,6 +457,7 @@ class ExpandedEntry(Gtk.EventBox):
         return _('No date')
 
     def _create_buddy_list(self):
+
         vbox = Gtk.VBox()
         vbox.props.spacing = style.DEFAULT_SPACING
 
@@ -535,8 +525,7 @@ class ExpandedEntry(Gtk.EventBox):
         new_title = self._title.get_text()
         if old_title != new_title:
             label = GLib.markup_escape_text(new_title)
-            if self._icon is not None:
-                self._icon.palette.props.primary_text = label
+            self._icon.palette.props.primary_text = label
             self._metadata['title'] = new_title
             self._metadata['title_set_by_user'] = '1'
             needs_update = True
@@ -581,9 +570,11 @@ class ExpandedEntry(Gtk.EventBox):
         self._update_entry(needs_update=True)
 
     def _icon_button_release_event_cb(self, button, event):
+        logging.debug('_icon_button_release_event_cb')
         misc.resume(self._metadata)
         return True
 
     def _preview_box_button_release_event_cb(self, button, event):
+        logging.debug('_preview_box_button_release_event_cb')
         misc.resume(self._metadata)
         return True
