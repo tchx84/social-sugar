@@ -48,7 +48,8 @@ class OnlineAccountsManager(GObject.GObject):
                         try:
                             mod = __import__('web.' + d + '.' + module_name, globals(),
                                              locals(), [module_name])
-                            accounts.append(mod.get_account())
+                            if hasattr(mod, 'get_account'):
+                                accounts.append(mod.get_account())
                         except Exception:
                             logging.exception('Exception while loading extension:')
                     elif f == 'icons':
