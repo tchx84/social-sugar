@@ -32,9 +32,10 @@ from facebook import facebook
 from gi.repository import Gtk
 from gi.repository import GdkPixbuf
 from gi.repository import GConf
+from gi.repository import GObject
 
 from sugar3.datastore import datastore
-from sugar3.graphics.alert import Alert, NotifyAlert
+from sugar3.graphics.alert import NotifyAlert
 from sugar3.graphics.icon import Icon
 
 from jarabe.journal import journalwindow
@@ -89,13 +90,15 @@ class FacebookOnlineAccount(online_account.OnlineAccount):
         logging.debug('_transfer_state_changed_cb')
 
         if self._alert is None:
+            logging.debug('creating new alert')
             self._alert = NotifyAlert()
             self._alert.props.title = ONLINE_ACCOUNT_NAME
             self._alert.connect('response', self._alert_response_cb)
+            journalwindow.get_journal_window().add_alert(self._alert)
+            self._alert.show()
 
-        journalwindow.get_journal_window().add_alert(self._alert)
+        logging.debug(state_message)
         self._alert.props.msg = state_message
-        self._alert.show()
 
     def _alert_response_cb(self, alert, response_id):
         journalwindow.get_journal_window().remove_alert(alert)
@@ -132,6 +135,7 @@ class _FacebookShareMenu(online_account.OnlineShareMenu):
     def _facebook_share_menu_cb(self, menu_item):
         logging.debug('_facebook_share_menu_cb')
 
+        self.emit('transfer-state-changed', _('Download started'))
         tmp_file = tempfile.mktemp()
         self._image_file_from_metadata(tmp_file)
 
@@ -140,9 +144,10 @@ class _FacebookShareMenu(online_account.OnlineShareMenu):
         photo.connect('photo-create-failed',
                       self._photo_create_failed_cb,
                       tmp_file)
-        photo.connect('transfer-state-changed', self._transfer_state_changed_cb)
+        photo.connect('transfer-state-changed',
+                      self._transfer_state_changed_cb)
 
-        result = photo.create(tmp_file)
+        GObject.idle_add(photo.create, tmp_file)
 
     def _photo_created_cb(self, fb_photo, fb_object_id, tmp_file):
         logging.debug("_photo_created_cb")
@@ -193,7 +198,8 @@ class _FacebookShareMenu(online_account.OnlineShareMenu):
 
 class _FacebookRefreshButton(online_account.OnlineRefreshButton):
     def __init__(self, is_active):
-        online_account.OnlineRefreshButton.__init__(self, 'facebook-refresh-insensitive')
+        online_account.OnlineRefreshButton.__init__(
+            self, 'facebook-refresh-insensitive')
 
         self._metadata = None
         self._is_active = is_active
@@ -224,13 +230,15 @@ class _FacebookRefreshButton(online_account.OnlineRefreshButton):
             logging.debug('_fb_refresh_button_clicked_cb called without fb_object_id in metadata')
             return
 
+        self.emit('transfer-state-changed', _('Download started'))
         fb_photo = facebook.FbPhoto(self._metadata['fb_object_id'])
         fb_photo.connect('comments-downloaded',
                          self._fb_comments_downloaded_cb)
         fb_photo.connect('comments-download-failed',
                          self._fb_comments_download_failed_cb)
-        fb_photo.connect('transfer-state-changed', self._transfer_state_changed_cb)
-        fb_photo.refresh_comments()
+        fb_photo.connect('transfer-state-changed',
+                         self._transfer_state_changed_cb)
+        GObject.idle_add(fb_photo.refresh_comments)
 
     def _fb_comments_downloaded_cb(self, fb_photo, comments):
         logging.debug('_fb_comments_downloaded_cb')
