@@ -16,6 +16,6 @@
 
 from gettext import gettext as _
 
-CLASS = 'FacebookConfig'
-ICON = 'facebook-share'
-TITLE = _('Configure your Facebook account')
+CLASS = 'WebServicesConfig'
+ICON = 'module-webservices'
+TITLE = _('Configure your Web Services')

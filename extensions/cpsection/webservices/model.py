@@ -23,7 +23,7 @@ import time
 
 from web.fb import facebook_online_account as fboa
 
-def save_access_token(access_token, expires_in):
+def fb_save_access_token(access_token, expires_in):
     client = GConf.Client.get_default()
     client.set_string(fboa.FacebookOnlineAccount.ACCESS_TOKEN_KEY, access_token)
     expiry_time = int(time.time()) + expires_in
