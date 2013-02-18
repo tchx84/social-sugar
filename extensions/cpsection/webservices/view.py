@@ -33,12 +33,20 @@ class WebServicesConfig(SectionView):
         self._model = model
         self.restart_alerts = alerts
 
+        services = self._get_services()
+        if len(services) == 0:
+            label = Gtk.Label(_('No web services are installed.\n\
+Please visit http://wiki.sugarlabs.org/WebServices for more details.'))
+            label.show()
+            self.add(label)
+            return
+
         vbox = Gtk.VBox()
         hbox = Gtk.HBox(style.DEFAULT_SPACING)
 
         self._service_config_box = Gtk.VBox()
 
-        for service in self._get_services():
+        for service in services:
             icon = CanvasIcon(icon_name=service.get_icon_name())
             icon.connect('button_press_event',
                          service.config_service_cb,
