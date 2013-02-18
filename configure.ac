@@ -53,6 +53,8 @@ extensions/cpsection/aboutcomputer/Makefile
 extensions/cpsection/aboutme/Makefile
 extensions/cpsection/datetime/Makefile
 extensions/cpsection/webservices/Makefile
+extensions/cpsection/webservices/services/Makefile
+extensions/cpsection/webservices/services/facebook/Makefile
 extensions/cpsection/frame/Makefile
 extensions/cpsection/keyboard/Makefile
 extensions/cpsection/language/Makefile
@@ -65,9 +67,9 @@ extensions/cpsection/updater/Makefile
 extensions/deviceicon/Makefile
 extensions/globalkey/Makefile
 extensions/web/Makefile
-extensions/web/fb/Makefile
-extensions/web/fb/facebook/Makefile
-extensions/web/fb/icons/Makefile
+extensions/web/facebook/Makefile
+extensions/web/facebook/facebook/Makefile
+extensions/web/facebook/icons/Makefile
 extensions/Makefile
 Makefile
 po/Makefile.in

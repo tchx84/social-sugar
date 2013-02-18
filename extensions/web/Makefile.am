@@ -1,4 +1,4 @@
-SUBDIRS = fb
+SUBDIRS = facebook
 
 sugardir = $(pkgdatadir)/extensions/web
 sugar_PYTHON = 		\

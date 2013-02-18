@@ -89,6 +89,7 @@ class FacebookOnlineAccount(online_account.OnlineAccount):
     def _transfer_state_changed_cb(self, widget, state_message):
         logging.debug('_transfer_state_changed_cb')
 
+        # First, remove any existing alert
         if self._alert is None:
             logging.debug('creating new alert')
             self._alert = NotifyAlert()

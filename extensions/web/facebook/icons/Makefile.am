@@ -1,4 +1,4 @@
-icondir = $(pkgdatadir)/extensions/web/fb/icons
+icondir = $(pkgdatadir)/extensions/web/facebook/icons
 
 icon_DATA =						\
 	facebook-like.svg				\

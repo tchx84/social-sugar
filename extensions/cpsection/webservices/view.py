@@ -15,26 +15,18 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
 
 import logging
+import os
 
 from gi.repository import Gtk
 from gi.repository import GObject
-from gi.repository import WebKit
-
-import urllib
-import urlparse
-
 from gettext import gettext as _
-
+from jarabe import config
+from jarabe.controlpanel.sectionview import SectionView
 from sugar3.graphics.icon import CanvasIcon
 from sugar3.graphics import style
 
-from jarabe.controlpanel.sectionview import SectionView
-
 
 class WebServicesConfig(SectionView):
-    FB_APP_ID = "172917389475707"
-    FB_REDIRECT_URI = "http://www.sugarlabs.org"
-
     def __init__(self, model, alerts):
         SectionView.__init__(self)
 
@@ -44,11 +36,15 @@ class WebServicesConfig(SectionView):
         vbox = Gtk.VBox()
         hbox = Gtk.HBox(style.DEFAULT_SPACING)
 
-        # Web services get added to the hbox
-        icon = CanvasIcon(icon_name='facebook-share')
-        icon.connect('button_press_event', self._fb_authorization_request_cb)
-        icon.show()
-        hbox.pack_start(icon, False, False, 0)
+        self._service_config_box = Gtk.VBox()
+
+        for service in self._get_services():
+            icon = CanvasIcon(icon_name=service.get_icon_name())
+            icon.connect('button_press_event',
+                         service.config_service_cb,
+                         self._service_config_box)
+            icon.show()
+            hbox.pack_start(icon, False, False, 0)
 
         hbox.show()
         vbox.pack_start(hbox, False, False, 0)
@@ -64,41 +60,38 @@ class WebServicesConfig(SectionView):
         scrolled.add_with_viewport(workspace)
         workspace.show()
 
-        self._wkv = WebKit.WebView()
-        workspace.add(self._wkv)
+        workspace.add(self._service_config_box)
         workspace.show_all()
         vbox.show()
 
     def undo(self):
         pass
 
-    # Web-service-specific callbacks go here
+    def _get_services(self):
+        services = []
+        path = os.path.join(config.ext_path,
+                            'cpsection',
+                            'webservices',
+                            'services')
+        folders = os.listdir(path)
 
-    def _fb_authorization_request_cb(self, widget, event):
-        logging.debug('fb authorization request')
-        self._wkv.load_uri(self._fb_auth_url())
-        self._wkv.grab_focus()
-        self._wkv.connect('navigation-policy-decision-requested',
-                          self._fb_nav_policy_cb)
+        for f in folders:
+            if not os.path.isdir(os.path.join(path, f)):
+                continue
 
-    def _fb_auth_url(self):
-        url = 'http://www.facebook.com/dialog/oauth'
-        params = [
-            ('client_id', self.FB_APP_ID),
-            ('redirect_uri', self.FB_REDIRECT_URI),
-            ('response_type', 'token'),
-            ('scope', 'publish_stream')
-            ]
+            if not os.path.exists(os.path.join(path, f, 'service.py')):
+                continue
 
-        return "%s?%s" % (url, urllib.urlencode(params))
+            try:
+                mod_name = 'cpsection.webservices.services.%s.service' % (f)
+                mod = __import__(mod_name,
+                                 globals(),
+                                 locals(),
+                                 ['service'])
+                if hasattr(mod, 'get_service'):
+                    services.append(mod.get_service())
+            except Exception as ex:
+                logging.exception(
+                    'Exception while loading extension: %s' % str(ex))
 
-    def _fb_nav_policy_cb(self, view, frame, req, action, param):
-        uri = req.get_uri()
-        if uri is None:
-            return
-
-        url_o = urlparse.urlparse(uri)
-        params = urlparse.parse_qs(url_o.fragment)
-        if params.has_key('access_token') and params.has_key('expires_in'):
-            self._model.fb_save_access_token(params['access_token'][0],
-                                          int(params['expires_in'][0]))
+        return services
