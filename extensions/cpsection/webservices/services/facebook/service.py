@@ -26,7 +26,7 @@ from gi.repository import GObject
 from gi.repository import WebKit
 from gettext import gettext as _
 from jarabe import config
-from web.fb import facebook_online_account as fboa
+from web.facebook import facebook_online_account as fboa
 from cpsection.webservices.web_service import WebService
 
 
