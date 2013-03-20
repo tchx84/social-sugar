@@ -70,6 +70,9 @@ extensions/web/Makefile
 extensions/web/facebook/Makefile
 extensions/web/facebook/facebook/Makefile
 extensions/web/facebook/icons/Makefile
+extensions/web/twitter/Makefile
+extensions/web/twitter/twitter/Makefile
+extensions/web/twitter/icons/Makefile
 extensions/Makefile
 Makefile
 po/Makefile.in
