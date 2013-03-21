@@ -137,6 +137,9 @@ class _TwitterShareMenu(online_account.OnlineShareMenu):
             return self._metadata[key]
         return default_value
 
+    def __status_updated_cb(self, tweet, data):
+        self._metadata['twr_object_id'] = tweet._status_id
+
     def _twitter_share_menu_cb(self, menu_item):
         logging.debug('_twitter_share_menu_cb')
 
@@ -145,8 +148,8 @@ class _TwitterShareMenu(online_account.OnlineShareMenu):
         self._image_file_from_metadata(tmp_file)
 
         tweet = TwrStatus()
+        tweet.connect('status-updated', self.__status_updated_cb)
         tweet.update_with_media(self._comment, tmp_file)
-        # TODO: Get the twr_object_id to save in the Journal
 
     def _image_file_from_metadata(self, image_path):
         """ Load a pixbuf from a Journal object. """
