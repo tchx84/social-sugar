@@ -29,6 +29,7 @@ import json
 
 from twitter.twr_account import TwrAccount
 from twitter.twr_status import TwrStatus
+from twitter.twr_timeline import TwrTimeline
 
 from gi.repository import Gtk
 from gi.repository import GdkPixbuf
@@ -203,19 +204,15 @@ class _TwitterRefreshButton(online_account.OnlineRefreshButton):
             return
 
         self.emit('transfer-state-changed', _('Download started'))
-        # To Do: filter tweets to find replys to this object id
-        # Fix Me: Twr.Status is not the correct function call
-        tweet = twitter.TwrStatus(self._metadata['twr_object_id'])
-        tweet.connect('comments-downloaded',
-                         self._twr_comments_downloaded_cb)
-        tweet.connect('comments-download-failed',
-                         self._twr_comments_download_failed_cb)
-        tweet.connect('transfer-state-changed',
-                         self._transfer_state_changed_cb)
-        GObject.idle_add(tweet.refresh_comments)
 
-    def _twr_comments_downloaded_cb(self, tweet, comments):
-        logging.debug('_twr_comments_downloaded_cb')
+        logging.log('\n\nCalling timeline for %s\n\n', self._metadata['twr_object_id'])
+        timeline = TwrTimeline()
+        timeline.connect('mentions-downloaded',
+                         self._twr_mentions_downloaded_cb)
+        timeline.mentions_timeline(800, self._metadata['twr_object_id'])
+
+    def _twr_mentions_downloaded_cb(self, timeline, data):
+        logging.debug('_twr_mentions_downloaded_cb')
 
         ds_object = datastore.get(self._metadata['uid'])
         if not COMMENTS in ds_object.metadata:
@@ -226,15 +223,23 @@ class _TwitterRefreshButton(online_account.OnlineRefreshButton):
             ds_comment_ids = []
         else:
             ds_comment_ids = json.loads(ds_object.metadata[COMMENT_IDS])
+
         new_comment = False
-        for comment in comments:
-            if comment['id'] not in ds_comment_ids:
-                # TODO: get avatar icon and add it to icon_theme
-                ds_comments.append({'from': comment['from'],
-                                    'message': comment['message'],
+        for comment in data:
+            # XXX hope for a better API
+
+            logging.debug('\nTCH: %s \n', comment['id_str'])
+
+            if comment['in_reply_to_user_id_str'] != self._metadata['twr_object_id']:
+               continue
+
+            if comment['id_str'] not in ds_comment_ids:
+                ds_comments.append({'from': comment['user_mentions']['name'],
+                                    'message': comment['text'],
                                     'icon': 'twitter-share'})
                 ds_comment_ids.append(comment['id'])
                 new_comment = True
+
         if new_comment:
             ds_object.metadata[COMMENTS] = json.dumps(ds_comments)
             ds_object.metadata[COMMENT_IDS] = json.dumps(ds_comment_ids)
