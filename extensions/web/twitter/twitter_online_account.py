@@ -175,7 +175,7 @@ class _TwitterRefreshButton(online_account.OnlineRefreshButton):
             self, 'twitter-refresh-insensitive')
 
         self._metadata = None
-        self._is_active = is_active
+        self._is_active = True
         self.set_tooltip(_('Twitter refresh'))
         self.set_sensitive(False)
         self.connect('clicked', self._twr_refresh_button_clicked_cb)
