@@ -68,11 +68,11 @@ class TwitterOnlineAccount(online_account.OnlineAccount):
         return ONLINE_ACCOUNT_NAME
 
     def is_configured(self):
-        return self._access_tokens() is not None
+        return None not in self._access_tokens()
 
     def is_active(self):
         # No expiration date
-        return self._access_tokens()[0] is not None
+        return None not in self._access_tokens()
 
     def get_share_menu(self, journal_entry_metadata):
         twr_share_menu = _TwitterShareMenu(journal_entry_metadata,
@@ -175,7 +175,7 @@ class _TwitterRefreshButton(online_account.OnlineRefreshButton):
             self, 'twitter-refresh-insensitive')
 
         self._metadata = None
-        self._is_active = True
+        self._is_active = is_active
         self.set_tooltip(_('Twitter refresh'))
         self.set_sensitive(False)
         self.connect('clicked', self._twr_refresh_button_clicked_cb)
@@ -205,10 +205,8 @@ class _TwitterRefreshButton(online_account.OnlineRefreshButton):
 
         self.emit('transfer-state-changed', _('Download started'))
 
-        logging.log('\n\nCalling timeline for %s\n\n', self._metadata['twr_object_id'])
         timeline = TwrTimeline()
-        timeline.connect('mentions-downloaded',
-                         self._twr_mentions_downloaded_cb)
+        timeline.connect('mentions-downloaded', self._twr_mentions_downloaded_cb)
         timeline.mentions_timeline(800, self._metadata['twr_object_id'])
 
     def _twr_mentions_downloaded_cb(self, timeline, data):
@@ -227,9 +225,6 @@ class _TwitterRefreshButton(online_account.OnlineRefreshButton):
         new_comment = False
         for comment in data:
             # XXX hope for a better API
-
-            logging.debug('\nTCH: %s \n', comment['id_str'])
-
             if comment['in_reply_to_user_id_str'] != self._metadata['twr_object_id']:
                continue
 
@@ -237,7 +232,7 @@ class _TwitterRefreshButton(online_account.OnlineRefreshButton):
                 ds_comments.append({'from': comment['user_mentions']['name'],
                                     'message': comment['text'],
                                     'icon': 'twitter-share'})
-                ds_comment_ids.append(comment['id'])
+                ds_comment_ids.append(comment['id_str'])
                 new_comment = True
 
         if new_comment:
