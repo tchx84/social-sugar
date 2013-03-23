@@ -138,9 +138,21 @@ class _TwitterShareMenu(online_account.OnlineShareMenu):
             return self._metadata[key]
         return default_value
 
-    def __status_updated_cb(self, tweet, data):
-        self._metadata['twr_object_id'] = tweet._status_id
+    def _status_updated_cb(self, status, data, tmp_file):
+        if os.path.exists(tmp_file):
+            os.unlink(tmp_file)
+        try:
+            ds_object = datastore.get(self._metadata['uid'])
+            ds_object.metadata['twr_object_id'] = status._status_id
+            datastore.write(ds_object, update_mtime=False)
+        except Exception as e:
+            logging.debug('_status_updated_cb failed to write: %s', str(e))
 
+    def _status_updated_failed_cb(self, status, message, tmp_file):
+        if os.path.exists(tmp_file):
+            os.unlink(tmp_file)
+        logging.error('_status_updated_failed_cb %s', message)
+            
     def _twitter_share_menu_cb(self, menu_item):
         logging.debug('_twitter_share_menu_cb')
 
@@ -148,9 +160,11 @@ class _TwitterShareMenu(online_account.OnlineShareMenu):
         tmp_file = tempfile.mktemp()
         self._image_file_from_metadata(tmp_file)
 
-        tweet = TwrStatus()
-        tweet.connect('status-updated', self.__status_updated_cb)
-        tweet.update_with_media(self._comment, tmp_file)
+        status = TwrStatus()
+        status.connect('status-updated', self._status_updated_cb, tmp_file)
+        status.connect('status-updated-failed',
+                        self._status_updated_failed_cb, tmp_file)
+        status.update_with_media(self._comment, tmp_file)
 
     def _image_file_from_metadata(self, image_path):
         """ Load a pixbuf from a Journal object. """
@@ -207,9 +221,9 @@ class _TwitterRefreshButton(online_account.OnlineRefreshButton):
 
         timeline = TwrTimeline()
         timeline.connect('mentions-downloaded', self._twr_mentions_downloaded_cb)
-        timeline.mentions_timeline(800, self._metadata['twr_object_id'])
+        timeline.mentions_timeline(since_id=self._metadata['twr_object_id'])
 
-    def _twr_mentions_downloaded_cb(self, timeline, data):
+    def _twr_mentions_downloaded_cb(self, timeline, comments):
         logging.debug('_twr_mentions_downloaded_cb')
 
         ds_object = datastore.get(self._metadata['uid'])
@@ -223,13 +237,13 @@ class _TwitterRefreshButton(online_account.OnlineRefreshButton):
             ds_comment_ids = json.loads(ds_object.metadata[COMMENT_IDS])
 
         new_comment = False
-        for comment in data:
+        for comment in comments:
             # XXX hope for a better API
-            if comment['in_reply_to_user_id_str'] != self._metadata['twr_object_id']:
+            if comment['in_reply_to_status_id_str'] != self._metadata['twr_object_id']:
                continue
 
             if comment['id_str'] not in ds_comment_ids:
-                ds_comments.append({'from': comment['user_mentions']['name'],
+                ds_comments.append({'from': comment['user']['name'],
                                     'message': comment['text'],
                                     'icon': 'twitter-share'})
                 ds_comment_ids.append(comment['id_str'])
