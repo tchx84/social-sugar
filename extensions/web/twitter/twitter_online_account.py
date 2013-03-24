@@ -49,6 +49,7 @@ ACCOUNT_ACTIVE = 1
 ONLINE_ACCOUNT_NAME = _('Twitter')
 COMMENTS = 'comments'
 COMMENT_IDS = 'twr_comment_ids'
+COMMENT_ID = 'last_comment_id'
 
 class TwitterOnlineAccount(online_account.OnlineAccount):
 
@@ -219,9 +220,16 @@ class _TwitterRefreshButton(online_account.OnlineRefreshButton):
 
         self.emit('transfer-state-changed', _('Download started'))
 
+        status_id = self._metadata['twr_object_id']
+
+        # XXX is there other way to update metadata?
+        ds_object = datastore.get(self._metadata['uid'])
+        if COMMENT_ID in ds_object.metadata:
+            status_id = ds_object.metadata[COMMENT_ID]
+
         timeline = TwrTimeline()
         timeline.connect('mentions-downloaded', self._twr_mentions_downloaded_cb)
-        timeline.mentions_timeline(since_id=self._metadata['twr_object_id'])
+        timeline.mentions_timeline(since_id=status_id)
 
     def _twr_mentions_downloaded_cb(self, timeline, comments):
         logging.debug('_twr_mentions_downloaded_cb')
@@ -236,6 +244,7 @@ class _TwitterRefreshButton(online_account.OnlineRefreshButton):
         else:
             ds_comment_ids = json.loads(ds_object.metadata[COMMENT_IDS])
 
+        comment_id = None
         new_comment = False
         for comment in comments:
             # XXX hope for a better API
@@ -247,9 +256,14 @@ class _TwitterRefreshButton(online_account.OnlineRefreshButton):
                                     'message': comment['text'],
                                     'icon': 'twitter-share'})
                 ds_comment_ids.append(comment['id_str'])
+
+                # XXX keep the latest one
+                if comment['id_str'] > comment_id:
+                    comment_id = comment['id_str']        
                 new_comment = True
 
         if new_comment:
+            ds_object.metadata[COMMENT_ID] = comment_id
             ds_object.metadata[COMMENTS] = json.dumps(ds_comments)
             ds_object.metadata[COMMENT_IDS] = json.dumps(ds_comment_ids)
             self.emit('comments-updated')
