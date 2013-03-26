@@ -81,10 +81,10 @@ class TwitterOnlineAccount(online_account.OnlineAccount):
         self._connect_transfer_signals(twr_share_menu)
         return twr_share_menu
 
-    def get_refresh_button(self):
-        twr_refresh_button = _TwitterRefreshButton(self.is_active())
-        self._connect_transfer_signals(twr_refresh_button)
-        return twr_refresh_button
+    def get_refresh_menu(self):
+        twr_refresh_menu = _TwitterRefreshMenu(self.is_active())
+        self._connect_transfer_signals(twr_refresh_menu)
+        return twr_refresh_menu
 
     def _connect_transfer_signals(self, transfer_widget):
         transfer_widget.connect('transfer-state-changed',
@@ -184,17 +184,22 @@ class _TwitterShareMenu(online_account.OnlineShareMenu):
             pixbuf.savev(image_path, 'png', [], [])
 
 
-class _TwitterRefreshButton(online_account.OnlineRefreshButton):
+class _TwitterRefreshMenu(online_account.OnlineRefreshMenu):
     def __init__(self, is_active):
-        online_account.OnlineRefreshButton.__init__(
-            self, 'twitter-refresh-insensitive')
+        online_account.OnlineRefreshMenu.__init__(self, ONLINE_ACCOUNT_NAME)
 
-        self._metadata = None
         self._is_active = is_active
-        self.set_tooltip(_('Twitter refresh'))
-        self.set_sensitive(False)
-        self.connect('clicked', self._twr_refresh_button_clicked_cb)
+        self._metadata = None
+
+        if is_active:
+            icon_name = 'twitter-refresh'
+        else:
+            icon_name = 'twitter-refresh-insensitive'
+        self.set_image(Icon(icon_name=icon_name,
+                            icon_size=Gtk.IconSize.MENU))
         self.show()
+
+        self.connect('activate', self._twr_refresh_menu_clicked_cb)
 
     def set_metadata(self, metadata):
         self._metadata = metadata
@@ -207,15 +212,15 @@ class _TwitterRefreshButton(online_account.OnlineRefreshButton):
                     self.set_sensitive(False)
                     self.set_icon_name('twitter-refresh-insensitive')
 
-    def _twr_refresh_button_clicked_cb(self, button):
-        logging.debug('_twr_refresh_button_clicked_cb')
+    def _twr_refresh_menu_clicked_cb(self, button):
+        logging.debug('_twr_refresh_menu_clicked_cb')
 
         if self._metadata is None:
-            logging.debug('_twr_refresh_button_clicked_cb called without metadata')
+            logging.debug('_twr_refresh_menu_clicked_cb called without metadata')
             return
 
         if 'twr_object_id' not in self._metadata:
-            logging.debug('_twr_refresh_button_clicked_cb called without twr_object_id in metadata')
+            logging.debug('_twr_refresh_menu_clicked_cb called without twr_object_id in metadata')
             return
 
         self.emit('transfer-state-changed', _('Download started'))
