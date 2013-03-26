@@ -44,7 +44,7 @@ class TwitterService(WebService):
                 self._client.get_string(twr.ACCESS_TOKEN_KEY),
                 self._client.get_string(twr.ACCESS_SECRET_KEY))
 
-    def _twr_save_access_cb(self, oauth, data):
+    def _twr_save_access_cb(self, oauth, data, container):
         logging.debug('_twr_save_access_cb')
 
         self._access_token = data['oauth_token']
@@ -59,7 +59,7 @@ class TwitterService(WebService):
         self._client.set_string(twr.ACCESS_TOKEN_KEY, self._access_token)
         self._client.set_string(twr.ACCESS_SECRET_KEY, self._access_secret)
 
-        logging.debug('saved %s' % str(self._twr_tokens()))
+        self._twr_configured(container)
 
     def _twr_verify_cb(self, oauth, data, container):
         logging.debug('_twr_verify_cb')
@@ -87,7 +87,10 @@ class TwitterService(WebService):
         def _button_cb(button):
             verifier = entry.get_text()
             oauth = TwrOauth()
-            oauth.connect('access-downloaded', self._twr_save_access_cb)
+            oauth.connect('access-downloaded',
+                            self._twr_save_access_cb, container)
+            oauth.connect('access-downloaded-failed',
+                            self._twr_failed_cb, container)
             oauth.access_token(verifier)
 
         label.set_text(_('Code:'))
@@ -103,11 +106,40 @@ class TwitterService(WebService):
         container.add(vbox)
         container.show_all()
 
+    def _twr_configured(self, container):
+        logging.debug('_twr_configured')
+
+        self._twr_show_msg(container, _('Your twitter account is configured.'))
+
+    def _twr_failed_cb(self, oauth, message, container):
+        logging.debug('_twr_failed_cb: %s', message)
+
+        self._twr_show_msg(container, _('Your twitter account can not be '\
+                          'configured at this moment.'))
+
+    def _twr_show_msg(self, container, msg):
+
+        for c in container.get_children():
+            container.remove(c)
+
+        vbox = Gtk.VBox()
+        label = Gtk.Label()
+        label.set_text(msg)
+
+        vbox.add(label)
+        container.add(vbox)
+        container.show_all()
+
     def get_icon_name(self):
         return 'twitter-share'
 
     def config_service_cb(self, widget, event, container):
         logging.debug('config_service_cb in twr')
+
+        tokens = self._twr_tokens()
+        if None not in tokens and '' not in tokens:
+            self._twr_configured(container)
+            return
 
         # XXX update step 1
         TwrAccount.set_secrets(self._consumer_token, self._consumer_secret,
@@ -115,6 +147,8 @@ class TwitterService(WebService):
  
         oauth = TwrOauth()
         oauth.connect('request-downloaded', self._twr_verify_cb, container)
+        oauth.connect('request-downloaded-failed',
+                        self._twr_failed_cb, container)
         oauth.request_token()
 
 def get_service():
