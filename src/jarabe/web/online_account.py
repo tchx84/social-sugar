@@ -72,7 +72,7 @@ class OnlineShareMenu(MenuItem):
         self.emit('transfer-state-changed', state)
 
 
-class OnlineRefreshButton(ToolButton):
+class OnlineRefreshMenu(MenuItem):
     __gsignals__ = {
         'transfer-started': (GObject.SignalFlags.RUN_FIRST, None, ([int, int])),
         'transfer-progress': (GObject.SignalFlags.RUN_FIRST, None, ([int, int, float])),
