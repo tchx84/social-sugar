@@ -55,6 +55,7 @@ extensions/cpsection/datetime/Makefile
 extensions/cpsection/webservices/Makefile
 extensions/cpsection/webservices/services/Makefile
 extensions/cpsection/webservices/services/facebook/Makefile
+extensions/cpsection/webservices/services/twitter/Makefile
 extensions/cpsection/frame/Makefile
 extensions/cpsection/keyboard/Makefile
 extensions/cpsection/language/Makefile
