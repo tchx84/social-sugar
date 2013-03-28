@@ -29,6 +29,7 @@ import json
 
 from twitter.twr_account import TwrAccount
 from twitter.twr_status import TwrStatus
+from twitter.twr_timeline import TwrTimeline
 
 from gi.repository import Gtk
 from gi.repository import GdkPixbuf
@@ -48,6 +49,7 @@ ACCOUNT_ACTIVE = 1
 ONLINE_ACCOUNT_NAME = _('Twitter')
 COMMENTS = 'comments'
 COMMENT_IDS = 'twr_comment_ids'
+COMMENT_ID = 'last_comment_id'
 
 class TwitterOnlineAccount(online_account.OnlineAccount):
 
@@ -67,11 +69,11 @@ class TwitterOnlineAccount(online_account.OnlineAccount):
         return ONLINE_ACCOUNT_NAME
 
     def is_configured(self):
-        return self._access_tokens() is not None
+        return None not in self._access_tokens()
 
     def is_active(self):
         # No expiration date
-        return self._access_tokens()[0] is not None
+        return None not in self._access_tokens()
 
     def get_share_menu(self, journal_entry_metadata):
         twr_share_menu = _TwitterShareMenu(journal_entry_metadata,
@@ -79,10 +81,10 @@ class TwitterOnlineAccount(online_account.OnlineAccount):
         self._connect_transfer_signals(twr_share_menu)
         return twr_share_menu
 
-    def get_refresh_button(self):
-        twr_refresh_button = _TwitterRefreshButton(self.is_active())
-        self._connect_transfer_signals(twr_refresh_button)
-        return twr_refresh_button
+    def get_refresh_menu(self):
+        twr_refresh_menu = _TwitterRefreshMenu(self.is_active())
+        self._connect_transfer_signals(twr_refresh_menu)
+        return twr_refresh_menu
 
     def _connect_transfer_signals(self, transfer_widget):
         transfer_widget.connect('transfer-state-changed',
@@ -137,6 +139,21 @@ class _TwitterShareMenu(online_account.OnlineShareMenu):
             return self._metadata[key]
         return default_value
 
+    def _status_updated_cb(self, status, data, tmp_file):
+        if os.path.exists(tmp_file):
+            os.unlink(tmp_file)
+        try:
+            ds_object = datastore.get(self._metadata['uid'])
+            ds_object.metadata['twr_object_id'] = status._status_id
+            datastore.write(ds_object, update_mtime=False)
+        except Exception as e:
+            logging.debug('_status_updated_cb failed to write: %s', str(e))
+
+    def _status_updated_failed_cb(self, status, message, tmp_file):
+        if os.path.exists(tmp_file):
+            os.unlink(tmp_file)
+        logging.error('_status_updated_failed_cb %s', message)
+            
     def _twitter_share_menu_cb(self, menu_item):
         logging.debug('_twitter_share_menu_cb')
 
@@ -144,9 +161,11 @@ class _TwitterShareMenu(online_account.OnlineShareMenu):
         tmp_file = tempfile.mktemp()
         self._image_file_from_metadata(tmp_file)
 
-        tweet = TwrStatus()
-        tweet.update_with_media(self._comment, tmp_file)
-        # TODO: Get the twr_object_id to save in the Journal
+        status = TwrStatus()
+        status.connect('status-updated', self._status_updated_cb, tmp_file)
+        status.connect('status-updated-failed',
+                        self._status_updated_failed_cb, tmp_file)
+        status.update_with_media(self._comment, tmp_file)
 
     def _image_file_from_metadata(self, image_path):
         """ Load a pixbuf from a Journal object. """
@@ -165,17 +184,22 @@ class _TwitterShareMenu(online_account.OnlineShareMenu):
             pixbuf.savev(image_path, 'png', [], [])
 
 
-class _TwitterRefreshButton(online_account.OnlineRefreshButton):
+class _TwitterRefreshMenu(online_account.OnlineRefreshMenu):
     def __init__(self, is_active):
-        online_account.OnlineRefreshButton.__init__(
-            self, 'twitter-refresh-insensitive')
+        online_account.OnlineRefreshMenu.__init__(self, ONLINE_ACCOUNT_NAME)
 
-        self._metadata = None
         self._is_active = is_active
-        self.set_tooltip(_('Twitter refresh'))
-        self.set_sensitive(False)
-        self.connect('clicked', self._twr_refresh_button_clicked_cb)
+        self._metadata = None
+
+        if is_active:
+            icon_name = 'twitter-refresh'
+        else:
+            icon_name = 'twitter-refresh-insensitive'
+        self.set_image(Icon(icon_name=icon_name,
+                            icon_size=Gtk.IconSize.MENU))
         self.show()
+
+        self.connect('activate', self._twr_refresh_menu_clicked_cb)
 
     def set_metadata(self, metadata):
         self._metadata = metadata
@@ -188,31 +212,32 @@ class _TwitterRefreshButton(online_account.OnlineRefreshButton):
                     self.set_sensitive(False)
                     self.set_icon_name('twitter-refresh-insensitive')
 
-    def _twr_refresh_button_clicked_cb(self, button):
-        logging.debug('_twr_refresh_button_clicked_cb')
+    def _twr_refresh_menu_clicked_cb(self, button):
+        logging.debug('_twr_refresh_menu_clicked_cb')
 
         if self._metadata is None:
-            logging.debug('_twr_refresh_button_clicked_cb called without metadata')
+            logging.debug('_twr_refresh_menu_clicked_cb called without metadata')
             return
 
         if 'twr_object_id' not in self._metadata:
-            logging.debug('_twr_refresh_button_clicked_cb called without twr_object_id in metadata')
+            logging.debug('_twr_refresh_menu_clicked_cb called without twr_object_id in metadata')
             return
 
         self.emit('transfer-state-changed', _('Download started'))
-        # To Do: filter tweets to find replys to this object id
-        # Fix Me: Twr.Status is not the correct function call
-        tweet = twitter.TwrStatus(self._metadata['twr_object_id'])
-        tweet.connect('comments-downloaded',
-                         self._twr_comments_downloaded_cb)
-        tweet.connect('comments-download-failed',
-                         self._twr_comments_download_failed_cb)
-        tweet.connect('transfer-state-changed',
-                         self._transfer_state_changed_cb)
-        GObject.idle_add(tweet.refresh_comments)
 
-    def _twr_comments_downloaded_cb(self, tweet, comments):
-        logging.debug('_twr_comments_downloaded_cb')
+        status_id = self._metadata['twr_object_id']
+
+        # XXX is there other way to update metadata?
+        ds_object = datastore.get(self._metadata['uid'])
+        if COMMENT_ID in ds_object.metadata:
+            status_id = ds_object.metadata[COMMENT_ID]
+
+        timeline = TwrTimeline()
+        timeline.connect('mentions-downloaded', self._twr_mentions_downloaded_cb)
+        timeline.mentions_timeline(since_id=status_id)
+
+    def _twr_mentions_downloaded_cb(self, timeline, comments):
+        logging.debug('_twr_mentions_downloaded_cb')
 
         ds_object = datastore.get(self._metadata['uid'])
         if not COMMENTS in ds_object.metadata:
@@ -223,16 +248,27 @@ class _TwitterRefreshButton(online_account.OnlineRefreshButton):
             ds_comment_ids = []
         else:
             ds_comment_ids = json.loads(ds_object.metadata[COMMENT_IDS])
+
+        comment_id = None
         new_comment = False
         for comment in comments:
-            if comment['id'] not in ds_comment_ids:
-                # TODO: get avatar icon and add it to icon_theme
-                ds_comments.append({'from': comment['from'],
-                                    'message': comment['message'],
+            # XXX hope for a better API
+            if comment['in_reply_to_status_id_str'] != self._metadata['twr_object_id']:
+               continue
+
+            if comment['id_str'] not in ds_comment_ids:
+                ds_comments.append({'from': comment['user']['name'],
+                                    'message': comment['text'],
                                     'icon': 'twitter-share'})
-                ds_comment_ids.append(comment['id'])
+                ds_comment_ids.append(comment['id_str'])
+
+                # XXX keep the latest one
+                if comment['id_str'] > comment_id:
+                    comment_id = comment['id_str']        
                 new_comment = True
+
         if new_comment:
+            ds_object.metadata[COMMENT_ID] = comment_id
             ds_object.metadata[COMMENTS] = json.dumps(ds_comments)
             ds_object.metadata[COMMENT_IDS] = json.dumps(ds_comment_ids)
             self.emit('comments-updated')

@@ -387,10 +387,15 @@ class DetailToolbox(ToolbarBox):
         self._duplicate.connect('clicked', self._duplicate_clicked_cb)
         self.toolbar.insert(self._duplicate, -1)
 
-        self._refresh_buttons = []
-        for account in oam.OnlineAccountsManager.configured_accounts():
-            self._refresh_buttons.append(account.get_refresh_button())
-            self.toolbar.insert(self._refresh_buttons[-1], -1)
+        if len(oam.OnlineAccountsManager.configured_accounts()) > 0:
+            self._refresh = ToolButton()
+            icon = Icon(icon_name='edit-refresh', xo_color=color)
+            self._refresh.set_icon_widget(icon)
+            icon.show()
+            self._refresh.set_tooltip(_('Refresh'))
+            self._refresh.connect('clicked', self._refresh_clicked_cb)
+            self.toolbar.insert(self._refresh, -1)
+            self._refresh.show()
 
         separator = Gtk.SeparatorToolItem()
         self.toolbar.insert(separator, -1)
@@ -404,10 +409,9 @@ class DetailToolbox(ToolbarBox):
 
     def set_metadata(self, metadata):
         self._metadata = metadata
-        for refresh_button in self._refresh_buttons:
-            refresh_button.set_metadata(metadata)
         self._refresh_copy_palette()
         self._refresh_duplicate_palette()
+        self._refresh_refresh_palette()
         self._refresh_resume_palette()
 
     def _resume_clicked_cb(self, button):
@@ -425,6 +429,9 @@ class DetailToolbox(ToolbarBox):
             self.emit('volume-error',
                       _('Error while copying the entry. %s') % (e.strerror, ),
                       _('Error'))
+
+    def _refresh_clicked_cb(self, button):
+        button.palette.popup(immediate=True, state=Palette.SECONDARY)
 
     def _erase_button_clicked_cb(self, button):
         alert = Alert()
@@ -519,6 +526,17 @@ class DetailToolbox(ToolbarBox):
             icon.show()
         else:
             self._duplicate.hide()
+
+    def _refresh_refresh_palette(self):
+        palette = self._refresh.get_palette()
+
+        for menu_item in palette.menu.get_children():
+            palette.menu.remove(menu_item)
+            menu_item.destroy()
+
+        for account in oam.OnlineAccountsManager.configured_accounts():
+            menu = account.get_refresh_menu()
+            palette.menu.append(menu)
 
     def __volume_error_cb(self, menu_item, message, severity):
         self.emit('volume-error', message, severity)
