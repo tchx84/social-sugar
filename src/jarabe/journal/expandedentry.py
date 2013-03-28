@@ -1,4 +1,5 @@
 # Copyright (C) 2007, One Laptop Per Child
+# Copyright (C) 2008-2013, Sugar Labs
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -29,8 +30,8 @@ import simplejson
 
 from sugar3.graphics import style
 from sugar3.graphics.xocolor import XoColor
-from sugar3.graphics.icon import (CanvasIcon, get_icon_file_name,
-                                  Icon, CellRendererIcon)
+from sugar3.graphics.icon import CanvasIcon, get_icon_file_name
+from sugar3.graphics.icon import Icon, CellRendererIcon
 from sugar3.graphics.alert import Alert
 from sugar3.util import format_size
 
@@ -63,26 +64,22 @@ class BuddyList(Gtk.Alignment):
         self.add(hbox)
 
 
-class DescTagsView(Gtk.TextView):
-    def __init__(self, parent):
+class TextView(Gtk.TextView):
+    def __init__(self):
         Gtk.TextView.__init__(self)
         text_buffer = Gtk.TextBuffer()
-        self._parent = parent
         self.set_buffer(text_buffer)
         self.set_left_margin(style.DEFAULT_PADDING)
         self.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
-        self.connect('focus-out-event',
-                     self._description_tags_focus_out_event_cb)
-
-    def _description_tags_focus_out_event_cb(self, text_view, event):
-        self._parent._update_entry()
 
 
 class CommentsView(Gtk.TreeView):
     __gsignals__ = {
         'comments-updated': (GObject.SignalFlags.RUN_FIRST, None, ([])),
+        'update-comments': (GObject.SignalFlags.RUN_FIRST, None, ([str])),
         'clicked': (GObject.SignalFlags.RUN_FIRST, None, [object]),
     }
+
     FROM = 'from'
     MESSAGE = 'message'
     ICON = 'icon'
@@ -94,17 +91,15 @@ class CommentsView(Gtk.TreeView):
     COMMENT_ERASE_ICON = 4
     COMMENT_ERASE_ICON_COLOR = 5
 
-    def __init__(self, parent):
+    def __init__(self):
         Gtk.TreeView.__init__(self)
         self._store = Gtk.ListStore(str, object, str, str, str, object)
-        self._parent = parent
         self._comments = []
         self._init_model()
-        self.connect('comments-updated', self._comments_updated_event_cb)
 
     def update_comments(self, comments):
         self._store.clear()
-        if comments != '':
+        if comments:
             self._comments = simplejson.loads(comments)
             for comment in self._comments:
                 self._add_row(
@@ -117,10 +112,6 @@ class CommentsView(Gtk.TreeView):
     def _get_selected_row(self):
         selection = self.get_selection()
         return selection.get_selected()
-
-    def _comments_updated_event_cb(self, event):
-        logging.debug('expandedexntry: comments updated event')
-        self.update_comments(self._parent.get_comments())
 
     def _get_comment_field(self, comment, field, default):
         if field in comment:
@@ -135,48 +126,57 @@ class CommentsView(Gtk.TreeView):
     def _init_model(self):
         self.set_model(self._store)
         col = Gtk.TreeViewColumn(_('Comments:'))
+
         who_icon = CellRendererCommentIcon(self)
         col.pack_start(who_icon, False)
         col.add_attribute(who_icon, 'file-name', self.COMMENT_ICON)
         col.add_attribute(who_icon, 'xo-color', self.COMMENT_ICON_COLOR)
+
         who_text = Gtk.CellRendererText()
         col.pack_start(who_text, True)
         col.add_attribute(who_text, 'text', self.COMMENT_FROM)
+
         comment_text = Gtk.CellRendererText()
         col.pack_start(comment_text, True)
         col.add_attribute(comment_text, 'text', self.COMMENT_MESSAGE)
+
         erase_icon = CellRendererCommentIcon(self)
         erase_icon.connect('clicked', self._erase_comment_cb)
         col.pack_start(erase_icon, False)
         col.add_attribute(erase_icon, 'file-name', self.COMMENT_ERASE_ICON)
         col.add_attribute(erase_icon, 'xo-color', self.COMMENT_ERASE_ICON_COLOR)
+
         self.append_column(col)
 
     def _erase_comment_cb(self, widget, event):
-        selection = self.get_selection()
-        entry = selection.get_selected()[1]
         alert = Alert()
+
+        entry = self.get_selection().get_selected()[1]
         erase_string = _('Erase')
         alert.props.title = erase_string
         alert.props.msg = _('Do you want to permanently erase \"%s\"?') \
             % self._store[entry][self.COMMENT_MESSAGE]
+
         icon = Icon(icon_name='dialog-cancel')
         alert.add_button(Gtk.ResponseType.CANCEL, _('Cancel'), icon)
         icon.show()
+
         ok_icon = Icon(icon_name='dialog-ok')
         alert.add_button(Gtk.ResponseType.OK, erase_string, ok_icon)
         ok_icon.show()
-        alert.connect('response', self.__erase_alert_response_cb, entry)
+
+        alert.connect('response', self._erase_alert_response_cb, entry)
+
         journalwindow.get_journal_window().add_alert(alert)
         alert.show()
 
-    def __erase_alert_response_cb(self, alert, response_id, entry):
+    def _erase_alert_response_cb(self, alert, response_id, entry):
         journalwindow.get_journal_window().remove_alert(alert)
         if response_id is Gtk.ResponseType.OK:
             self._comments.remove(
                 self._comments[int(str(self._store[entry].path))])
-            self._parent.set_comments(json.dumps(self._comments))
             self._store.remove(entry)
+            self.emit('update-comments', simplejson.dumps(self._comments))
 
 
 class CellRendererCommentIcon(CellRendererIcon):
@@ -189,10 +189,10 @@ class CellRendererCommentIcon(CellRendererIcon):
         self.props.stroke_color = style.COLOR_BUTTON_GREY.get_svg()
         self.props.fill_color = style.COLOR_BLACK.get_svg()
         self.props.mode = Gtk.CellRendererMode.ACTIVATABLE
-        self.props.icon_name = ''
 
 
 class ExpandedEntry(Gtk.EventBox):
+
     def __init__(self):
         Gtk.EventBox.__init__(self)
         self._vbox = Gtk.VBox()
@@ -488,18 +488,25 @@ class ExpandedEntry(Gtk.EventBox):
         scrolled_window.add(widget)
         vbox.pack_start(scrolled_window, True, True, 0)
 
-        return vbox, widget
+        return vbox
 
     def _create_description(self):
-        return self._create_scrollable(DescTagsView(self),
-                                       label=_('Description:'))
+        widget = TextView()
+        widget.connect('focus-out-event',
+                       self._description_tags_focus_out_event_cb)
+        return self._create_scrollable(widget, label=_('Description:')), widget
 
     def _create_tags(self):
-        return self._create_scrollable(DescTagsView(self),
-                                       label=_('Tags:'))
+        widget = TextView()
+        widget.connect('focus-out-event',
+                       self._description_tags_focus_out_event_cb)
+        return self._create_scrollable(widget, label=_('Tags:')), widget
 
     def _create_comments(self):
-        return self._create_scrollable(CommentsView(self))
+        widget = CommentsView()
+        widget.connect('comments-updated', self._comments_updated_event_cb)
+        widget.connect('update-comments', self._update_comments_cb)
+        return self._create_scrollable(widget), widget
 
     def _title_notify_text_cb(self, entry, pspec):
         if not self._update_title_sid:
@@ -511,6 +518,12 @@ class ExpandedEntry(Gtk.EventBox):
 
     def _description_tags_focus_out_event_cb(self, text_view, event):
         self._update_entry()
+
+    def _comments_updated_event_cb(self, event):
+        self.update_comments(self.get_comments())
+
+    def _update_comments_cb(self, event, comments):
+        self.set_comments(comments)
 
     def _update_entry(self, needs_update=False):
         if not model.is_editable(self._metadata):
