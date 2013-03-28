@@ -19,26 +19,23 @@ from gettext import gettext as _
 import StringIO
 import time
 import os
-import json
 
 import cairo
 from gi.repository import GObject
 from gi.repository import GLib
 from gi.repository import Gtk
 from gi.repository import Gdk
+import simplejson
 
 from sugar3.graphics import style
 from sugar3.graphics.xocolor import XoColor
-from sugar3.graphics.icon import (CanvasIcon, get_icon_file_name,
-                                  Icon, CellRendererIcon)
-from sugar3.graphics.alert import Alert
+from sugar3.graphics.icon import CanvasIcon
 from sugar3.util import format_size
 
 from jarabe.journal.keepicon import KeepIcon
 from jarabe.journal.palettes import ObjectPalette, BuddyPalette
 from jarabe.journal import misc
 from jarabe.journal import model
-from jarabe.journal import journalwindow
 
 
 class Separator(Gtk.VBox):
@@ -61,142 +58,6 @@ class BuddyList(Gtk.Alignment):
             icon.set_palette(BuddyPalette(buddy))
             hbox.pack_start(icon, True, True, 0)
         self.add(hbox)
-
-
-class DescTagsView(Gtk.TextView):
-    def __init__(self, parent):
-        Gtk.TextView.__init__(self)
-        text_buffer = Gtk.TextBuffer()
-        self._parent = parent
-        self.set_buffer(text_buffer)
-        self.set_left_margin(style.DEFAULT_PADDING)
-        self.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
-        self.connect('focus-out-event',
-                     self._description_tags_focus_out_event_cb)
-
-    def _description_tags_focus_out_event_cb(self, text_view, event):
-        self._parent._update_entry()
-
-
-class CommentsView(Gtk.TreeView):
-    __gsignals__ = {
-        'comments-updated': (GObject.SignalFlags.RUN_FIRST, None, ([])),
-        'clicked': (GObject.SignalFlags.RUN_FIRST, None, [object]),
-    }
-    FROM = 'from'
-    MESSAGE = 'message'
-    ICON = 'icon'
-    COMMENT_ICON = 0
-    COMMENT_ICON_COLOR = 1
-    COMMENT_FROM = 2
-    COMMENT_MESSAGE = 3
-    COMMENT_ERASE_ICON = 4
-    COMMENT_ERASE_ICON_COLOR = 5
-
-    def __init__(self, parent):
-        Gtk.TreeView.__init__(self)
-        self._store = Gtk.ListStore(str, object, str, str, str, object)
-        self._parent = parent
-        self._comments = []
-        self._init_model()
-        self.connect('comments-updated', self._comments_updated_event_cb)
-
-    def update_comments(self, comments):
-        self._store.clear()
-        if comments != '':
-            self._comments = json.loads(comments)
-            for comment in self._comments:
-                self._add_row(
-                    self._get_comment_field(comment, self.FROM, ''),
-                    self._get_comment_field(comment, self.MESSAGE, ''),
-                    self._get_comment_field(comment, self.ICON, 'computer-xo'))
-        self.show()
-
-    def _get_selected_row(self):
-        selection = self.get_selection()
-        return selection.get_selected()
-
-    def _comments_updated_event_cb(self, event):
-        logging.debug('expandedexntry: comments updated event')
-        self.update_comments(self._parent.get_comments())
-
-    def _get_comment_field(self, comment, field, default):
-        if field in comment:
-            return comment[field]
-        return default
-
-    def _add_row(self, sender, message, icon):
-        if type(icon) is list:
-            icon_name = 'computer-xo'
-            icon_color = '%s,%s' % (str(icon[0]), str(icon[1]))
-        else:
-            icon_name = icon
-            icon_color = '#FFFFFF,#000000'
-        self._store.append((get_icon_file_name(icon_name), XoColor(icon_color),
-                            sender, message, get_icon_file_name('list-remove'),
-                            XoColor('#FFFFFF,#000000')))
-
-    def _init_model(self):
-        self.set_model(self._store)
-        col = Gtk.TreeViewColumn(_('Comments:'))
-        who_icon = CellRendererCommentIcon(self)
-        col.pack_start(who_icon, False)
-        col.add_attribute(who_icon, 'file-name', self.COMMENT_ICON)
-        col.add_attribute(who_icon, 'xo-color', self.COMMENT_ICON_COLOR)
-        who_text = Gtk.CellRendererText()
-        col.pack_start(who_text, True)
-        col.add_attribute(who_text, 'text', self.COMMENT_FROM)
-        comment_text = Gtk.CellRendererText()
-        col.pack_start(comment_text, True)
-        col.add_attribute(comment_text, 'text', self.COMMENT_MESSAGE)
-        erase_icon = CellRendererCommentIcon(self)
-        erase_icon.connect('clicked', self._erase_comment_cb)
-        col.pack_start(erase_icon, False)
-        col.add_attribute(erase_icon, 'file-name', self.COMMENT_ERASE_ICON)
-        col.add_attribute(erase_icon, 'xo-color', self.COMMENT_ERASE_ICON_COLOR)
-        self.append_column(col)
-        self.show()
-
-    def _erase_comment_cb(self, widget, event):
-        selection = self.get_selection()
-        entry = selection.get_selected()[1]
-        alert = Alert()
-        erase_string = _('Erase')
-        alert.props.title = erase_string
-        alert.props.msg = _('Do you want to permanently erase \"%s\"?') \
-            % self._store[entry][self.COMMENT_MESSAGE]
-        icon = Icon(icon_name='dialog-cancel')
-        alert.add_button(Gtk.ResponseType.CANCEL, _('Cancel'), icon)
-        icon.show()
-        ok_icon = Icon(icon_name='dialog-ok')
-        alert.add_button(Gtk.ResponseType.OK, erase_string, ok_icon)
-        ok_icon.show()
-        alert.connect('response', self.__erase_alert_response_cb, entry)
-        journalwindow.get_journal_window().add_alert(alert)
-        alert.show()
-
-    def __erase_alert_response_cb(self, alert, response_id, entry):
-        journalwindow.get_journal_window().remove_alert(alert)
-        if response_id is Gtk.ResponseType.OK:
-            # Seems a bit kludgy
-            self._comments.remove(
-                self._comments[int(str(self._store[entry].path))])
-            self._parent.set_comments(json.dumps(self._comments))
-            self._store.remove(entry)
-            self.show()
-
-
-class CellRendererCommentIcon(CellRendererIcon):
-    def __init__(self, tree_view):
-        CellRendererIcon.__init__(self, tree_view)
-
-        self.props.width = style.SMALL_ICON_SIZE
-        self.props.height = style.SMALL_ICON_SIZE
-        self.props.size = style.SMALL_ICON_SIZE
-        self.props.stroke_color = style.COLOR_BUTTON_GREY.get_svg()
-        self.props.fill_color = style.COLOR_BLACK.get_svg()
-        self.props.mode = Gtk.CellRendererMode.ACTIVATABLE
-        self.props.icon_name = ''
 
 
 class ExpandedEntry(Gtk.EventBox):
@@ -267,10 +128,6 @@ class ExpandedEntry(Gtk.EventBox):
         second_column.pack_start(tags_box, True, True,
                                  style.DEFAULT_SPACING)
 
-        comments_box, self._comments = self._create_comments()
-        second_column.pack_start(comments_box, True, True,
-                                 style.DEFAULT_SPACING)
-
         self._buddy_list = Gtk.VBox()
         second_column.pack_start(self._buddy_list, True, False, 0)
 
@@ -313,18 +170,6 @@ class ExpandedEntry(Gtk.EventBox):
         self._description.get_buffer().set_text(description)
         tags = metadata.get('tags', '')
         self._tags.get_buffer().set_text(tags)
-        comments = metadata.get('comments', '')
-        self._comments.update_comments(comments)
-
-    def set_comments(self, comments):
-        self._metadata['comments'] = comments
-        self._write_entry()
-
-    def get_comments(self):
-        if 'comments' in self._metadata:
-            return self._metadata['comments']
-        else:
-            return ''
 
     def _create_keep_icon(self):
         keep_icon = KeepIcon()
@@ -469,45 +314,46 @@ class ExpandedEntry(Gtk.EventBox):
         vbox.pack_start(halign, False, False, 0)
 
         if self._metadata.get('buddies'):
-            buddies = json.loads(self._metadata['buddies']).values()
+            buddies = simplejson.loads(self._metadata['buddies']).values()
             vbox.pack_start(BuddyList(buddies), False, False, 0)
             return vbox
         else:
             return vbox
 
-    def _create_scrollable(self, label, widget_class):
+    def _create_scrollable(self, label):
         vbox = Gtk.VBox()
         vbox.props.spacing = style.DEFAULT_SPACING
 
-        if label is not None:
-            text = Gtk.Label()
-            text.set_markup('<span foreground="%s">%s</span>' % (
-                    style.COLOR_BUTTON_GREY.get_html(), label))
+        text = Gtk.Label()
+        text.set_markup('<span foreground="%s">%s</span>' % (
+                style.COLOR_BUTTON_GREY.get_html(), label))
 
-            halign = Gtk.Alignment.new(0, 0, 0, 0)
-            halign.add(text)
-            vbox.pack_start(halign, False, False, 0)
+        halign = Gtk.Alignment.new(0, 0, 0, 0)
+        halign.add(text)
+        vbox.pack_start(halign, False, False, 0)
 
         scrolled_window = Gtk.ScrolledWindow()
         scrolled_window.set_policy(Gtk.PolicyType.AUTOMATIC,
                                    Gtk.PolicyType.AUTOMATIC)
         scrolled_window.set_shadow_type(Gtk.ShadowType.ETCHED_IN)
-
-        widget = widget_class(self)
-
-        scrolled_window.add(widget)
+        text_buffer = Gtk.TextBuffer()
+        text_view = Gtk.TextView()
+        text_view.set_buffer(text_buffer)
+        text_view.set_left_margin(style.DEFAULT_PADDING)
+        text_view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
+        scrolled_window.add(text_view)
         vbox.pack_start(scrolled_window, True, True, 0)
 
-        return vbox, widget
+        text_view.connect('focus-out-event',
+                          self._description_tags_focus_out_event_cb)
+
+        return vbox, text_view
 
     def _create_description(self):
-        return self._create_scrollable(_('Description:'), DescTagsView)
+        return self._create_scrollable(_('Description:'))
 
     def _create_tags(self):
-        return self._create_scrollable(_('Tags:'), DescTagsView)
-
-    def _create_comments(self):
-        return self._create_scrollable(None, CommentsView)
+        return self._create_scrollable(_('Tags:'))
 
     def _title_notify_text_cb(self, entry, pspec):
         if not self._update_title_sid:
@@ -515,6 +361,9 @@ class ExpandedEntry(Gtk.EventBox):
                                                          self._update_title_cb)
 
     def _title_focus_out_event_cb(self, entry, event):
+        self._update_entry()
+
+    def _description_tags_focus_out_event_cb(self, text_view, event):
         self._update_entry()
 
     def _update_entry(self, needs_update=False):
@@ -548,19 +397,16 @@ class ExpandedEntry(Gtk.EventBox):
             needs_update = True
 
         if needs_update:
-            self._write_entry()
+            if self._metadata.get('mountpoint', '/') == '/':
+                model.write(self._metadata, update_mtime=False)
+            else:
+                old_file_path = os.path.join(self._metadata['mountpoint'],
+                        model.get_file_name(old_title,
+                        self._metadata['mime_type']))
+                model.write(self._metadata, file_path=old_file_path,
+                        update_mtime=False)
 
         self._update_title_sid = None
-
-    def _write_entry(self):
-        if self._metadata.get('mountpoint', '/') == '/':
-            model.write(self._metadata, update_mtime=False)
-        else:
-            old_file_path = os.path.join(self._metadata['mountpoint'],
-                model.get_file_name(old_title,
-                                    self._metadata['mime_type']))
-            model.write(self._metadata, file_path=old_file_path,
-                        update_mtime=False)
 
     def _keep_icon_toggled_cb(self, keep_icon):
         if keep_icon.get_active():
