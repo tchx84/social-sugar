@@ -25,7 +25,7 @@ import logging
 from gi.repository import GObject
 
 from sugar3.graphics.menuitem import MenuItem
-from sugar3.graphics.toolbutton import ToolButton
+
 
 class OnlineAccount(GObject.GObject):
     def get_description(self):
@@ -44,42 +44,13 @@ class OnlineAccount(GObject.GObject):
         raise Exception("Not defined")
 
 
-'''
-class _TransferWidget(GObject.GObject):
-     __gsignals__ = {
-        'transfer-started': (GObject.SignalFlags.RUN_FIRST, None, ([int, int])),
-        'transfer-progress': (GObject.SignalFlags.RUN_FIRST, None, ([int, int, float])),
-        'transfer-completed': (GObject.SignalFlags.RUN_FIRST, None, ([int, int])),
-        'transfer-failed': (GObject.SignalFlags.RUN_FIRST, None, ([int, int, str])),
-        'transfer-state-changed': (GObject.SignalFlags.RUN_FIRST, None, ([str])),
-    }
-
-    def _transfer_state_changed_cb(self, transfer_object, state):
-        self.emit('transfer-state-changed', state)
-'''
-
-class OnlineShareMenu(MenuItem):
+class OnlineMenu(MenuItem):
     __gsignals__ = {
         'transfer-started': (GObject.SignalFlags.RUN_FIRST, None, ([int, int])),
         'transfer-progress': (GObject.SignalFlags.RUN_FIRST, None, ([int, int, float])),
         'transfer-completed': (GObject.SignalFlags.RUN_FIRST, None, ([int, int])),
         'transfer-failed': (GObject.SignalFlags.RUN_FIRST, None, ([int, int, str])),
         'transfer-state-changed': (GObject.SignalFlags.RUN_FIRST, None, ([str])),
-    }
-
-    def _transfer_state_changed_cb(self, transfer_object, state):
-        logging.debug('_transfer_state_changed_cb')
-        self.emit('transfer-state-changed', state)
-
-
-class OnlineRefreshMenu(MenuItem):
-    __gsignals__ = {
-        'transfer-started': (GObject.SignalFlags.RUN_FIRST, None, ([int, int])),
-        'transfer-progress': (GObject.SignalFlags.RUN_FIRST, None, ([int, int, float])),
-        'transfer-completed': (GObject.SignalFlags.RUN_FIRST, None, ([int, int])),
-        'transfer-failed': (GObject.SignalFlags.RUN_FIRST, None, ([int, int, str])),
-        'transfer-state-changed': (GObject.SignalFlags.RUN_FIRST, None, ([str])),
-        'comments-updated': (GObject.SignalFlags.RUN_FIRST, None, ([])),
     }
 
     def _transfer_state_changed_cb(self, transfer_object, state):
