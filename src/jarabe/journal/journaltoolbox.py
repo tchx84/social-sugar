@@ -26,7 +26,6 @@ from gi.repository import GObject
 from gi.repository import Gio
 from gi.repository import Gtk
 
-from sugar3.datastore import datastore
 from sugar3.graphics.palette import Palette
 from sugar3.graphics.toolbarbox import ToolbarBox
 from sugar3.graphics.toolcombobox import ToolComboBox
@@ -38,7 +37,7 @@ from sugar3.graphics.palettemenu import PaletteMenuBox
 from sugar3.graphics.palettemenu import PaletteMenuItem
 from sugar3.graphics.icon import Icon
 from sugar3.graphics.xocolor import XoColor
-from sugar3.graphics.alert import NotifyAlert, Alert
+from sugar3.graphics.alert import Alert
 from sugar3.graphics import iconentry
 from sugar3 import mime
 
@@ -49,6 +48,7 @@ from jarabe.journal.palettes import ClipboardMenu
 from jarabe.journal.palettes import VolumeMenu
 from jarabe.journal import journalwindow
 from jarabe.web import online_accounts_manager as oam
+
 
 _AUTOSEARCH_TIMEOUT = 1000
 
@@ -90,6 +90,7 @@ class MainToolbox(ToolbarBox):
         self._add_widget(self.search_entry, expand=True)
 
         self._favorite_button = ToggleToolButton('emblem-favorite')
+        self._favorite_button.set_tooltip(_('Favorite entries'))
         self._favorite_button.connect('toggled',
                                       self.__favorite_button_toggled_cb)
         self.toolbar.insert(self._favorite_button, -1)
@@ -108,8 +109,6 @@ class MainToolbox(ToolbarBox):
         tool_item.show()
 
         self._sorting_button = SortingButton()
-        self._sorting_button.connect('clicked',
-                                     self.__sorting_button_clicked_cb)
         self.toolbar.insert(self._sorting_button, -1)
         self._sorting_button.connect('sort-property-changed',
                                      self.__sort_changed_cb)
@@ -226,9 +225,6 @@ class MainToolbox(ToolbarBox):
 
     def __sort_changed_cb(self, button):
         self._update_if_needed()
-
-    def __sorting_button_clicked_cb(self, button):
-        self._sorting_button.palette.popup(immediate=True, state=1)
 
     def _update_if_needed(self):
         new_query = self._build_query()
@@ -487,7 +483,8 @@ class DetailToolbox(ToolbarBox):
             journal_menu.show()
 
         documents_path = model.get_documents_path()
-        if not self._metadata['uid'].startswith(documents_path):
+        if documents_path is not None and not \
+                self._metadata['uid'].startswith(documents_path):
             documents_menu = VolumeMenu(self._metadata, _('Documents'),
                                         documents_path)
             documents_menu.set_image(Icon(icon_name='user-documents',
@@ -589,6 +586,9 @@ class SortingButton(ToolButton):
 
         self.props.tooltip = _('Sort view')
         self.props.icon_name = 'view-lastedit'
+
+        self.props.hide_tooltip_on_click = False
+        self.palette_invoker.props.toggle_palette = True
 
         menu_box = PaletteMenuBox()
         self.props.palette.set_content(menu_box)

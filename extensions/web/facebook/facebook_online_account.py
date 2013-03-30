@@ -109,11 +109,11 @@ class FacebookOnlineAccount(online_account.OnlineAccount):
         return self._client.get_string(self.ACCESS_TOKEN_KEY)
 
 
-class _FacebookShareMenu(online_account.OnlineShareMenu):
+class _FacebookShareMenu(online_account.OnlineMenu):
     __gtype_name__ = 'JournalFacebookMenu'
 
     def __init__(self, metadata, is_active):
-        online_account.OnlineShareMenu.__init__(self, ONLINE_ACCOUNT_NAME)
+        online_account.OnlineMenu.__init__(self, ONLINE_ACCOUNT_NAME)
 
         if is_active:
             icon_name = 'facebook-share'
@@ -197,9 +197,9 @@ class _FacebookShareMenu(online_account.OnlineShareMenu):
             pixbuf.savev(image_path, 'png', [], [])
 
 
-class _FacebookRefreshMenu(online_account.OnlineRefreshMenu):
+class _FacebookMenu(online_account.OnlineRefreshMenu):
     def __init__(self, is_active):
-        online_account.OnlineRefreshMenu.__init__(self, ONLINE_ACCOUNT_NAME)
+        online_account.OnlineMenu.__init__(self, ONLINE_ACCOUNT_NAME)
 
         self._is_active = is_active
         self._metadata = None

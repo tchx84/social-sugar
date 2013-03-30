@@ -17,23 +17,20 @@
 from gettext import gettext as _
 import logging
 import os
-import tempfile
 
 from gi.repository import GObject
 from gi.repository import Gtk
 from gi.repository import Gdk
-from gi.repository import GdkPixbuf
 from gi.repository import GConf
 from gi.repository import Gio
 from gi.repository import GLib
 
-from sugar3.datastore import datastore
 from sugar3.graphics import style
 from sugar3.graphics.palette import Palette
 from sugar3.graphics.menuitem import MenuItem
 from sugar3.graphics.icon import Icon
 from sugar3.graphics.xocolor import XoColor
-from sugar3.graphics.alert import Alert, NotifyAlert
+from sugar3.graphics.alert import Alert
 from sugar3 import mime
 
 from jarabe.model import friends
@@ -43,6 +40,7 @@ from jarabe.journal import misc
 from jarabe.journal import model
 from jarabe.journal import journalwindow
 from jarabe.web import online_accounts_manager as oam
+
 
 class ObjectPalette(Palette):
 
@@ -228,8 +226,8 @@ class CopyMenu(Gtk.Menu):
             journal_menu.show()
 
         documents_path = model.get_documents_path()
-        if documents_path is not None and\
-                not self._metadata['uid'].startswith(documents_path):
+        if documents_path is not None and not \
+                self._metadata['uid'].startswith(documents_path):
             documents_menu = VolumeMenu(self._metadata, _('Documents'),
                                         documents_path)
             documents_menu.set_image(Icon(icon_name='user-documents',

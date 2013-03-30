@@ -115,11 +115,11 @@ class TwitterOnlineAccount(online_account.OnlineAccount):
                 self._client.get_string(self.ACCESS_SECRET_KEY))
 
 
-class _TwitterShareMenu(online_account.OnlineShareMenu):
+class _TwitterShareMenu(online_account.OnlineMenu):
     __gtype_name__ = 'JournalTwitterMenu'
 
     def __init__(self, metadata, is_active):
-        online_account.OnlineShareMenu.__init__(self, ONLINE_ACCOUNT_NAME)
+        online_account.OnlineMenu.__init__(self, ONLINE_ACCOUNT_NAME)
 
         if is_active:
             icon_name = 'twitter-share'
@@ -184,9 +184,9 @@ class _TwitterShareMenu(online_account.OnlineShareMenu):
             pixbuf.savev(image_path, 'png', [], [])
 
 
-class _TwitterRefreshMenu(online_account.OnlineRefreshMenu):
+class _TwitterRefreshMenu(online_account.OnlineMenu):
     def __init__(self, is_active):
-        online_account.OnlineRefreshMenu.__init__(self, ONLINE_ACCOUNT_NAME)
+        online_account.OnlineMenu.__init__(self, ONLINE_ACCOUNT_NAME)
 
         self._is_active = is_active
         self._metadata = None
