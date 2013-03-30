@@ -109,11 +109,11 @@ class FacebookOnlineAccount(online_account.OnlineAccount):
         return self._client.get_string(self.ACCESS_TOKEN_KEY)
 
 
-class _FacebookShareMenu(online_account.OnlineMenu):
+class _FacebookShareMenu(online_account.OnlineShareMenu):
     __gtype_name__ = 'JournalFacebookMenu'
 
     def __init__(self, metadata, is_active):
-        online_account.OnlineMenu.__init__(self, ONLINE_ACCOUNT_NAME)
+        online_account.OnlineShareMenu.__init__(self, ONLINE_ACCOUNT_NAME)
 
         if is_active:
             icon_name = 'facebook-share'
@@ -197,9 +197,9 @@ class _FacebookShareMenu(online_account.OnlineMenu):
             pixbuf.savev(image_path, 'png', [], [])
 
 
-class _FacebookRefreshMenu(online_account.OnlineMenu):
+class _FacebookRefreshMenu(online_account.OnlineRefreshMenu):
     def __init__(self, is_active):
-        online_account.OnlineMenu.__init__(self, ONLINE_ACCOUNT_NAME)
+        online_account.OnlineRefreshMenu.__init__(self, ONLINE_ACCOUNT_NAME)
 
         self._is_active = is_active
         self._metadata = None
@@ -220,10 +220,12 @@ class _FacebookRefreshMenu(online_account.OnlineMenu):
             if self._metadata:
                 if 'fb_object_id' in self._metadata:
                     self.set_sensitive(True)
-                    self.set_icon_name('facebook-refresh')
+                    icon_name = 'facebook-refresh'
                 else:
                     self.set_sensitive(False)
-                    self.set_icon_name('facebook-refresh-insensitive')
+                    icon_name = 'facebook-refresh-insensitive'
+                self.set_image(Icon(icon_name=icon_name,
+                                    icon_size=Gtk.IconSize.MENU))
 
     def _fb_refresh_menu_clicked_cb(self, button):
         logging.debug('_fb_refresh_menu_clicked_cb')
@@ -270,7 +272,7 @@ class _FacebookRefreshMenu(online_account.OnlineMenu):
         if new_comment:
             ds_object.metadata[COMMENTS] = json.dumps(ds_comments)
             ds_object.metadata[COMMENT_IDS] = json.dumps(ds_comment_ids)
-            self.emit('comments-updated')
+            self.emit('comments-changed', ds_object.metadata[COMMENTS])
 
         datastore.write(ds_object, update_mtime=False)
 

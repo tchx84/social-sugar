@@ -389,7 +389,7 @@ class DetailToolbox(ToolbarBox):
 
         if len(oam.OnlineAccountsManager.configured_accounts()) > 0:
             self._refresh = ToolButton()
-            icon = Icon(icon_name='edit-refresh', xo_color=color)
+            icon = Icon(icon_name='refresh', xo_color=color)
             self._refresh.set_icon_widget(icon)
             icon.show()
             self._refresh.set_tooltip(_('Refresh'))
@@ -537,6 +537,7 @@ class DetailToolbox(ToolbarBox):
         for account in oam.OnlineAccountsManager.configured_accounts():
             menu = account.get_refresh_menu()
             palette.menu.append(menu)
+            menu.set_metadata(self._metadata)
 
     def __volume_error_cb(self, menu_item, message, severity):
         self.emit('volume-error', message, severity)

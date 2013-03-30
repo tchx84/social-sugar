@@ -75,8 +75,7 @@ class TextView(Gtk.TextView):
 
 class CommentsView(Gtk.TreeView):
     __gsignals__ = {
-        'comments-updated': (GObject.SignalFlags.RUN_FIRST, None, ([])),
-        'update-comments': (GObject.SignalFlags.RUN_FIRST, None, ([str])),
+        'comments-changed': (GObject.SignalFlags.RUN_FIRST, None, ([str])),
         'clicked': (GObject.SignalFlags.RUN_FIRST, None, [object]),
     }
 
@@ -102,25 +101,21 @@ class CommentsView(Gtk.TreeView):
         if comments:
             self._comments = simplejson.loads(comments)
             for comment in self._comments:
-                self._add_row(
-                    self._get_comment_field(comment, self.FROM, ''),
-                    self._get_comment_field(comment, self.MESSAGE, ''),
-                    self._get_comment_field(comment, self.ICON, 'computer-xo'),
-                    self._get_comment_field(comment, self.ICON_COLOR,
-                                            '#FFFFFF,#000000'))
+                self._add_row(comment.get(self.FROM, ''),
+                              comment.get(self.MESSAGE, ''),
+                              comment.get(self.ICON, 'computer-xo'),
+                              comment.get(self.ICON_COLOR, '#FFFFFF,#000000'))
 
     def _get_selected_row(self):
         selection = self.get_selection()
         return selection.get_selected()
 
-    def _get_comment_field(self, comment, field, default):
-        if field in comment:
-            return comment[field]
-        return default
-
     def _add_row(self, sender, message, icon_name, icon_color):
-        self._store.append((get_icon_file_name(icon_name), XoColor(icon_color),
-                            sender, message, get_icon_file_name('list-remove'),
+        self._store.append((get_icon_file_name(icon_name),
+                            XoColor(icon_color),
+                            sender,
+                            message,
+                            get_icon_file_name('list-remove'),
                             XoColor('#FFFFFF,#000000')))
 
     def _init_model(self):
@@ -173,10 +168,18 @@ class CommentsView(Gtk.TreeView):
     def _erase_alert_response_cb(self, alert, response_id, entry):
         journalwindow.get_journal_window().remove_alert(alert)
         if response_id is Gtk.ResponseType.OK:
-            self._comments.remove(
-                self._comments[int(str(self._store[entry].path))])
             self._store.remove(entry)
-            self.emit('update-comments', simplejson.dumps(self._comments))
+            # Regenerate comments from current contents of store
+            self._comments = []
+            for entry in self._store:
+                self._comments.append({
+                        self.FROM: entry[self.COMMENT_FROM],
+                        self.MESSAGE: entry[self.COMMENT_MESSAGE],
+                        self.ICON: entry[self.COMMENT_ICON],
+                        self.ICON_COLOR: '[%s]' % (
+                            entry[self.COMMENT_ICON_COLOR].to_string()),
+                        })
+            self.emit('comments-changed', simplejson.dumps(self._comments))
 
 
 class CellRendererCommentIcon(CellRendererIcon):
@@ -311,13 +314,11 @@ class ExpandedEntry(Gtk.EventBox):
 
     def set_comments(self, comments):
         self._metadata['comments'] = comments
+        self._comments.update_comments(comments)
         self._write_entry()
 
     def get_comments(self):
-        if 'comments' in self._metadata:
-            return self._metadata['comments']
-        else:
-            return ''
+        return self._metadata.get('comments', None)
 
     def _create_keep_icon(self):
         keep_icon = KeepIcon()
@@ -504,8 +505,7 @@ class ExpandedEntry(Gtk.EventBox):
 
     def _create_comments(self):
         widget = CommentsView()
-        widget.connect('comments-updated', self._comments_updated_event_cb)
-        widget.connect('update-comments', self._update_comments_cb)
+        widget.connect('comments-changed', self._update_comments_cb)
         return self._create_scrollable(widget), widget
 
     def _title_notify_text_cb(self, entry, pspec):
@@ -518,9 +518,6 @@ class ExpandedEntry(Gtk.EventBox):
 
     def _description_tags_focus_out_event_cb(self, text_view, event):
         self._update_entry()
-
-    def _comments_updated_event_cb(self, event):
-        self.update_comments(self.get_comments())
 
     def _update_comments_cb(self, event, comments):
         self.set_comments(comments)

@@ -49,7 +49,7 @@ ACCOUNT_ACTIVE = 1
 ONLINE_ACCOUNT_NAME = _('Twitter')
 COMMENTS = 'comments'
 COMMENT_IDS = 'twr_comment_ids'
-COMMENT_ID = 'last_comment_id'
+COMMENT_LAST_ID = 'last_comment_id'
 
 class TwitterOnlineAccount(online_account.OnlineAccount):
 
@@ -115,11 +115,11 @@ class TwitterOnlineAccount(online_account.OnlineAccount):
                 self._client.get_string(self.ACCESS_SECRET_KEY))
 
 
-class _TwitterShareMenu(online_account.OnlineMenu):
+class _TwitterShareMenu(online_account.OnlineShareMenu):
     __gtype_name__ = 'JournalTwitterMenu'
 
     def __init__(self, metadata, is_active):
-        online_account.OnlineMenu.__init__(self, ONLINE_ACCOUNT_NAME)
+        online_account.OnlineShareMenu.__init__(self, ONLINE_ACCOUNT_NAME)
 
         if is_active:
             icon_name = 'twitter-share'
@@ -184,9 +184,9 @@ class _TwitterShareMenu(online_account.OnlineMenu):
             pixbuf.savev(image_path, 'png', [], [])
 
 
-class _TwitterRefreshMenu(online_account.OnlineMenu):
+class _TwitterRefreshMenu(online_account.OnlineRefreshMenu):
     def __init__(self, is_active):
-        online_account.OnlineMenu.__init__(self, ONLINE_ACCOUNT_NAME)
+        online_account.OnlineRefreshMenu.__init__(self, ONLINE_ACCOUNT_NAME)
 
         self._is_active = is_active
         self._metadata = None
@@ -205,12 +205,14 @@ class _TwitterRefreshMenu(online_account.OnlineMenu):
         self._metadata = metadata
         if self._is_active:
             if self._metadata:
-                if 'twr_object_id' in self._metadata:
+                if 'fb_object_id' in self._metadata:
                     self.set_sensitive(True)
-                    self.set_icon_name('twitter-refresh')
+                    icon_name = 'twitter-refresh'
                 else:
                     self.set_sensitive(False)
-                    self.set_icon_name('twitter-refresh-insensitive')
+                    icon_name = 'twitter-refresh-insensitive'
+                self.set_image(Icon(icon_name=icon_name,
+                                    icon_size=Gtk.IconSize.MENU))
 
     def _twr_refresh_menu_clicked_cb(self, button):
         logging.debug('_twr_refresh_menu_clicked_cb')
@@ -229,8 +231,8 @@ class _TwitterRefreshMenu(online_account.OnlineMenu):
 
         # XXX is there other way to update metadata?
         ds_object = datastore.get(self._metadata['uid'])
-        if COMMENT_ID in ds_object.metadata:
-            status_id = ds_object.metadata[COMMENT_ID]
+        if COMMENT_LAST_ID in ds_object.metadata:
+            status_id = ds_object.metadata[COMMENT_LAST_ID]
 
         timeline = TwrTimeline()
         timeline.connect('mentions-downloaded', self._twr_mentions_downloaded_cb)
@@ -268,10 +270,10 @@ class _TwitterRefreshMenu(online_account.OnlineMenu):
                 new_comment = True
 
         if new_comment:
-            ds_object.metadata[COMMENT_ID] = comment_id
+            ds_object.metadata[COMMENT_LAST_ID] = comment_id
             ds_object.metadata[COMMENTS] = json.dumps(ds_comments)
             ds_object.metadata[COMMENT_IDS] = json.dumps(ds_comment_ids)
-            self.emit('comments-updated')
+            self.emit('comments-changed', ds_object.metadata[COMMENTS])
 
         datastore.write(ds_object, update_mtime=False)
 
