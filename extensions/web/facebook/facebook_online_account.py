@@ -197,7 +197,7 @@ class _FacebookShareMenu(online_account.OnlineMenu):
             pixbuf.savev(image_path, 'png', [], [])
 
 
-class _FacebookMenu(online_account.OnlineRefreshMenu):
+class _FacebookRefreshMenu(online_account.OnlineMenu):
     def __init__(self, is_active):
         online_account.OnlineMenu.__init__(self, ONLINE_ACCOUNT_NAME)
 
