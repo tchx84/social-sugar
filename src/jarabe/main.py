@@ -259,6 +259,10 @@ def main():
     keyboard.setup()
 
     sys.path.append(config.ext_path)
+    user_ext_path = os.path.join(os.path.expanduser('~'), '.sugar',
+                                 'extensions')
+    if os.path.exists(user_ext_path):
+        sys.path.append(user_ext_path)
 
     if not intro.check_profile():
         _start_intro()

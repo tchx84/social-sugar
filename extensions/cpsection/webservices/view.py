@@ -77,29 +77,43 @@ Please visit http://wiki.sugarlabs.org/WebServices for more details.'))
 
     def _get_services(self):
         services = []
-        path = os.path.join(config.ext_path,
-                            'cpsection',
-                            'webservices',
-                            'services')
-        folders = os.listdir(path)
 
-        for f in folders:
-            if not os.path.isdir(os.path.join(path, f)):
-                continue
+        service_paths = [os.path.join(config.ext_path,
+                                      'cpsection',
+                                      'webservices',
+                                      'services'),
+                         os.path.join(os.path.expanduser('~'),
+                                      '.sugar',
+                                      'extensions',
+                                      'cpsection',
+                                      'webservices',
+                                      'services')]
 
-            if not os.path.exists(os.path.join(path, f, 'service.py')):
-                continue
+        for service_path in service_paths:
+            if os.path.exists(service_path):
+                folders = os.listdir(service_path)
 
-            try:
-                mod_name = 'cpsection.webservices.services.%s.service' % (f)
-                mod = __import__(mod_name,
-                                 globals(),
-                                 locals(),
-                                 ['service'])
-                if hasattr(mod, 'get_service'):
-                    services.append(mod.get_service())
-            except Exception as ex:
-                logging.exception(
-                    'Exception while loading extension: %s' % str(ex))
+                for f in folders:
+                    if not os.path.isdir(os.path.join(service_path, f)):
+                        continue
+
+                    if not os.path.exists(os.path.join(service_path, f,
+                                                       'service.py')):
+                        continue
+
+                    try:
+                        logging.exception('Found webservice %s' % (f))
+                        mod_name = \
+                            'cpsection.webservices.services.%s.service' % (f)
+                        mod = __import__(mod_name,
+                                         globals(),
+                                         locals(),
+                                         ['service'])
+                        if hasattr(mod, 'get_service'):
+                            services.append(mod.get_service())
+                    except Exception as e:
+                        logging.exception(
+                            'Exception while loading extension %s: %s' % \
+                                (f, str(e)))
 
         return services

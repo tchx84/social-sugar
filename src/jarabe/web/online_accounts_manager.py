@@ -33,28 +33,38 @@ class OnlineAccountsManager(GObject.GObject):
         icon_theme = Gtk.IconTheme.get_default()
         icon_search_path = icon_theme.get_search_path()
 
-        web_path = os.path.join(config.ext_path, 'web')
-        for d in os.listdir(web_path):
-            dir_path = os.path.join(web_path, d)
-            if os.path.isdir(dir_path):
-                for f in os.listdir(dir_path):
-                    if f.endswith('.py') and not f.startswith('__'):
-                        module_name = f[:-3]
-                        logging.debug("OnlineAccountsManager loading %s" % \
-                                          (module_name))
-                        try:
-                            mod = __import__('web.' + d + '.' + module_name, globals(),
-                                             locals(), [module_name])
-                            if hasattr(mod, 'get_account'):
-                                accounts.append(mod.get_account())
-                        except Exception:
-                            logging.exception('Exception while loading extension:')
-                    elif f == 'icons':
-                        icon_path = os.path.join(dir_path, f)
-                        if os.path.isdir(icon_path) and \
-                           icon_path not in icon_search_path:
-                            logging.debug("OnelineAccountsManager adding %s to icon_theme" % (icon_path))
-                            icon_theme.append_search_path(icon_path)
+        web_paths = [os.path.join(config.ext_path, 'web'),
+                     os.path.join(os.path.expanduser('~'),
+                                  '.sugar', 'extensions', 'web')]
+
+        for web_path in web_paths:
+            if os.path.exists(web_path):
+                for d in os.listdir(web_path):
+                    dir_path = os.path.join(web_path, d)
+                    if os.path.isdir(dir_path):
+                        for f in os.listdir(dir_path):
+                            if f.endswith('.py') and not f.startswith('__'):
+                                module_name = f[:-3]
+                                logging.debug(
+                                    'OnlineAccountsManager loading %s' % \
+                                                  (module_name))
+                                try:
+                                    mod = __import__(
+                                        'web.' + d + '.' + module_name,
+                                        globals(),
+                                        locals(),
+                                        [module_name])
+                                    if hasattr(mod, 'get_account'):
+                                        accounts.append(mod.get_account())
+                                except Exception as e:
+                                    logging.exception(
+                                        'Exception while loading %s: %s' % \
+                                            (module_name, str(e)))
+                            elif f == 'icons':
+                                icon_path = os.path.join(dir_path, f)
+                                if os.path.isdir(icon_path) and \
+                                        icon_path not in icon_search_path:
+                                    icon_theme.append_search_path(icon_path)
 
         return accounts
 
