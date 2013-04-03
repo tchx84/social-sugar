@@ -39,7 +39,7 @@ from jarabe.model import mimeregistry
 from jarabe.journal import misc
 from jarabe.journal import model
 from jarabe.journal import journalwindow
-from jarabe.web import online_accounts_manager as oam
+from jarabe.web import accountsmanager as oam
 
 
 class ObjectPalette(Palette):
@@ -252,7 +252,7 @@ class CopyMenu(Gtk.Menu):
             self.append(volume_menu)
             volume_menu.show()
 
-        for account in oam.OnlineAccountsManager.configured_accounts():
+        for account in oam.get_configured_accounts():
             menu = account.get_share_menu(metadata)
             self.append(menu)
 

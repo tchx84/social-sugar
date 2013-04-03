@@ -47,7 +47,7 @@ from jarabe.journal import model
 from jarabe.journal.palettes import ClipboardMenu
 from jarabe.journal.palettes import VolumeMenu
 from jarabe.journal import journalwindow
-from jarabe.web import online_accounts_manager as oam
+from jarabe.web import accountsmanager
 
 
 _AUTOSEARCH_TIMEOUT = 1000
@@ -383,11 +383,12 @@ class DetailToolbox(ToolbarBox):
         self._duplicate.connect('clicked', self._duplicate_clicked_cb)
         self.toolbar.insert(self._duplicate, -1)
 
-        if len(oam.OnlineAccountsManager.configured_accounts()) > 0:
+        if len(accountsmanager.get_configured_accounts()) > 0:
             self._refresh = ToolButton()
             icon = Icon(icon_name='refresh', xo_color=color)
             self._refresh.set_icon_widget(icon)
             icon.show()
+
             self._refresh.set_tooltip(_('Refresh'))
             self._refresh.connect('clicked', self._refresh_clicked_cb)
             self.toolbar.insert(self._refresh, -1)
@@ -416,6 +417,9 @@ class DetailToolbox(ToolbarBox):
     def _copy_clicked_cb(self, button):
         button.palette.popup(immediate=True, state=Palette.SECONDARY)
 
+    def _refresh_clicked_cb(self, button):
+        button.palette.popup(immediate=True, state=Palette.SECONDARY)
+
     def _duplicate_clicked_cb(self, button):
         file_path = model.get_file(self._metadata['uid'])
         try:
@@ -425,9 +429,6 @@ class DetailToolbox(ToolbarBox):
             self.emit('volume-error',
                       _('Error while copying the entry. %s') % (e.strerror, ),
                       _('Error'))
-
-    def _refresh_clicked_cb(self, button):
-        button.palette.popup(immediate=True, state=Palette.SECONDARY)
 
     def _erase_button_clicked_cb(self, button):
         alert = Alert()
@@ -509,7 +510,7 @@ class DetailToolbox(ToolbarBox):
             palette.menu.append(volume_menu)
             volume_menu.show()
 
-        for account in oam.OnlineAccountsManager.configured_accounts():
+        for account in accountsmanager.get_configured_accounts():
             menu = account.get_share_menu(self._metadata)
             palette.menu.append(menu)
 
@@ -525,13 +526,13 @@ class DetailToolbox(ToolbarBox):
             self._duplicate.hide()
 
     def _refresh_refresh_palette(self):
+        color = misc.get_icon_color(self._metadata)
+        self._refresh.get_icon_widget().props.xo_color = color
         palette = self._refresh.get_palette()
-
         for menu_item in palette.menu.get_children():
             palette.menu.remove(menu_item)
-            menu_item.destroy()
 
-        for account in oam.OnlineAccountsManager.configured_accounts():
+        for account in accountsmanager.get_configured_accounts():
             menu = account.get_refresh_menu()
             palette.menu.append(menu)
             menu.set_metadata(self._metadata)
