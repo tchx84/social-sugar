@@ -23,7 +23,7 @@ from gettext import gettext as _
 
 from web.twitter.twitter.twr_oauth import TwrOauth
 from web.twitter.twitter.twr_account import TwrAccount
-from web.twitter.twitter_online_account import TwitterOnlineAccount as twr
+from web.twitter.account import TwitterOnlineAccount as twr
 from cpsection.webservices.web_service import WebService
 
 

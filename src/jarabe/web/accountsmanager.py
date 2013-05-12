@@ -22,38 +22,45 @@ from gi.repository import Gtk
 
 from jarabe import config
 
+_accounts = []
+
 
 def get_all_accounts():
-    accounts = []
+    ''' Returns a list of all installed online account managers '''
+    global _accounts  # No need to do this every time.
+    if len(_accounts) > 0:
+        return _accounts
 
     web_path = os.path.join(config.ext_path, 'web')
-    if os.path.exists(web_path):
-        for d in os.listdir(web_path):
-            dir_path = os.path.join(web_path, d)
-            module = _load_module(dir_path)
-            if module is not None:
-                accounts.append(module)
-                _load_icon_path(dir_path)
+    try:
+        web_path_dirs = os.listdir(web_path)
+    except OSError, e:
+        web_path_dirs = []
+        logging.warning('listdir: %s: %s' % (web_path, e))
 
-    return accounts
+    for d in web_path_dirs:
+        dir_path = os.path.join(web_path, d)
+        module = _load_module(dir_path)
+        if module is not None:
+            _accounts.append(module)
+            _extend_icon_theme_search_path(dir_path)
+
+    return _accounts
 
 
 def _load_module(dir_path):
     module = None
     if os.path.isdir(dir_path):
         for f in os.listdir(dir_path):
-            if f.endswith('.py') and not f.startswith('__'):
+            if f == 'account.py':
                 module_name = f[:-3]
                 logging.debug('OnlineAccountsManager loading %s' % (
                         module_name))
-
+                module_path = 'web.%s.%s' % (os.path.basename(dir_path),
+                                             module_name)
                 try:
-                    mod = __import__(
-                        'web.' + os.path.basename(dir_path) + '.' + \
-                            module_name,
-                        globals(),
-                        locals(),
-                        [module_name])
+                    mod = __import__(module_path, globals(), locals(),
+                                     [module_name])
                     if hasattr(mod, 'get_account'):
                         module = mod.get_account()
 
@@ -64,17 +71,22 @@ def _load_module(dir_path):
     return module
 
 
-def _load_icon_path(dir_path):
+def _extend_icon_theme_search_path(dir_path):
     icon_theme = Gtk.IconTheme.get_default()
     icon_search_path = icon_theme.get_search_path()
 
-    if os.path.isdir(dir_path):
-        for f in os.listdir(dir_path):
-            if f == 'icons':
-                icon_path = os.path.join(dir_path, f)
-                if os.path.isdir(icon_path) and \
-                        icon_path not in icon_search_path:
-                    icon_theme.append_search_path(icon_path)
+    try:
+        icon_path_dirs = os.listdir(dir_path)
+    except OSError, e:
+        icon_path_dirs = []
+        logging.warning('listdir: %s: %s' % (dir_path, e))
+
+    for f in icon_path_dirs:
+        if f == 'icons':
+            icon_path = os.path.join(dir_path, f)
+            if os.path.isdir(icon_path) and \
+                    icon_path not in icon_search_path:
+                icon_theme.append_search_path(icon_path)
 
 
 def get_configured_accounts():
