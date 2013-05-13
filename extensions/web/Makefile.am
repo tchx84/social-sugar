@@ -1,4 +1,4 @@
-SUBDIRS = facebook twitter
+SUBDIRS = facebook twitter journalx
 
 sugardir = $(pkgdatadir)/extensions/web
 sugar_PYTHON = 		\

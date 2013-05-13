@@ -55,6 +55,7 @@ extensions/cpsection/datetime/Makefile
 extensions/cpsection/webservices/Makefile
 extensions/cpsection/webservices/services/Makefile
 extensions/cpsection/webservices/services/facebook/Makefile
+extensions/cpsection/webservices/services/journalx/Makefile
 extensions/cpsection/webservices/services/twitter/Makefile
 extensions/cpsection/frame/Makefile
 extensions/cpsection/keyboard/Makefile
@@ -74,6 +75,8 @@ extensions/web/facebook/icons/Makefile
 extensions/web/twitter/Makefile
 extensions/web/twitter/twitter/Makefile
 extensions/web/twitter/icons/Makefile
+extensions/web/journalx/Makefile
+extensions/web/journalx/journalx/Makefile
 extensions/Makefile
 Makefile
 po/Makefile.in
